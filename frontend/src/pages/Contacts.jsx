@@ -8,6 +8,7 @@ export default function Contacts() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [editingContact, setEditingContact] = useState(null)
   const [showMessageModal, setShowMessageModal] = useState(false)
   const [selectedContact, setSelectedContact] = useState(null)
   const [messageText, setMessageText] = useState('')
@@ -70,14 +71,35 @@ export default function Contacts() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    console.log('handleSubmit called', { editingContact, formData })
     try {
-      await contactApi.create(formData)
+      if (editingContact) {
+        await contactApi.update(editingContact.id, formData)
+        toast.success('Contact updated')
+      } else {
+        await contactApi.create(formData)
+        toast.success('Contact created')
+      }
       setShowModal(false)
+      setEditingContact(null)
       setFormData({ name: '', phone: '', tags: '' })
       loadContacts()
     } catch (e) {
       console.error(e)
+      toast.error('Failed to save contact')
     }
+  }
+
+  const openEditModal = (contact) => {
+    setEditingContact(contact)
+    setFormData({ name: contact.name, phone: contact.phone, tags: contact.tags || '' })
+    setShowModal(true)
+  }
+
+  const openAddModal = () => {
+    setEditingContact(null)
+    setFormData({ name: '', phone: '', tags: '' })
+    setShowModal(true)
   }
 
   const handleDelete = async (id) => {
@@ -139,7 +161,7 @@ export default function Contacts() {
             Import CSV
             <input type="file" accept=".csv" onChange={handleImport} style={{ display: 'none' }} />
           </label>
-          <button onClick={() => setShowModal(true)} className="btn btn-primary">
+          <button onClick={openAddModal} className="btn btn-primary">
             + Add Contact
           </button>
         </div>
@@ -173,6 +195,9 @@ export default function Contacts() {
                       <button onClick={() => openMessageModal(contact)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px', marginRight: '8px' }} disabled={deviceStatus !== 'connected' && deviceStatus !== 'active'}>
                         Send
                       </button>
+                      <button onClick={() => openEditModal(contact)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px', marginRight: '8px' }}>
+                        Edit
+                      </button>
                       <button onClick={() => handleDelete(contact.id)} className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '12px' }}>
                         Delete
                       </button>
@@ -201,8 +226,8 @@ export default function Contacts() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">Add Contact</h3>
-              <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
+              <h3 className="modal-title">{editingContact ? 'Edit Contact' : 'Add Contact'}</h3>
+              <button onClick={() => { setShowModal(false); setEditingContact(null) }} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
@@ -239,8 +264,8 @@ export default function Contacts() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary">Cancel</button>
-                <button type="submit" className="btn btn-primary">Add Contact</button>
+                <button type="button" onClick={() => { setShowModal(false); setEditingContact(null) }} className="btn btn-secondary">Cancel</button>
+                <button type="submit" className="btn btn-primary">{editingContact ? 'Update Contact' : 'Add Contact'}</button>
               </div>
             </form>
           </div>

@@ -67,19 +67,25 @@ func (h *ContactHandler) Create(c *gin.Context) {
 		return
 	}
 
+	h.log.Info("Creating contact", "name", input.Name, "phone", input.Phone, "tenant", tenantID)
+
 	contact := &domain.Contact{
 		ID:       uuid.New().String(),
 		TenantID: tenantID,
 		Name:     input.Name,
-		Phone:    input.Phone,
+		Phone:    h.sanitizePhone(input.Phone),
 		Tags:     input.Tags,
 	}
+
+	h.log.Info("Contact to create", "contact", contact)
 
 	if err := h.contactRepo.Create(contact); err != nil {
 		h.log.Error("Failed to create contact", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	h.log.Info("Contact created successfully", "id", contact.ID)
 
 	c.JSON(http.StatusCreated, contact)
 }
@@ -114,7 +120,7 @@ func (h *ContactHandler) Update(c *gin.Context) {
 		contact.Name = input.Name
 	}
 	if input.Phone != "" {
-		contact.Phone = input.Phone
+		contact.Phone = h.sanitizePhone(input.Phone)
 	}
 	if input.Tags != "" {
 		contact.Tags = input.Tags
@@ -186,9 +192,7 @@ func (h *ContactHandler) ImportCSV(c *gin.Context) {
 			continue
 		}
 
-		phone := strings.TrimSpace(record[1])
-		phone = strings.ReplaceAll(phone, " ", "")
-		phone = strings.ReplaceAll(phone, "-", "")
+		phone := h.sanitizePhone(record[1])
 
 		contacts = append(contacts, domain.Contact{
 			ID:       uuid.New().String(),
@@ -201,7 +205,7 @@ func (h *ContactHandler) ImportCSV(c *gin.Context) {
 	if len(contacts) > 0 {
 		if err := h.contactRepo.CreateBatch(contacts); err != nil {
 			h.log.Error("Failed to import contacts", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to import contacts"})
 			return
 		}
 	}
@@ -210,4 +214,20 @@ func (h *ContactHandler) ImportCSV(c *gin.Context) {
 		"message":  "Contacts imported successfully",
 		"imported": len(contacts),
 	})
+}
+
+func (h *ContactHandler) sanitizePhone(phone string) string {
+	phone = strings.TrimSpace(phone)
+
+	phone = strings.ReplaceAll(phone, " ", "")
+	phone = strings.ReplaceAll(phone, "-", "")
+	phone = strings.ReplaceAll(phone, "(", "")
+	phone = strings.ReplaceAll(phone, ")", "")
+	phone = strings.ReplaceAll(phone, "+", "")
+
+	if strings.HasPrefix(phone, "0") {
+		phone = "62" + phone[1:]
+	}
+
+	return phone
 }

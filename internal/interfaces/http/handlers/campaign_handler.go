@@ -86,16 +86,6 @@ func (h *CampaignHandler) Create(c *gin.Context) {
 		Status:   domain.CampaignStatusDraft,
 	}
 
-	if input.ScheduledAt != nil {
-		scheduledTime, err := time.Parse(time.RFC3339, *input.ScheduledAt)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scheduled_at format"})
-			return
-		}
-		campaign.ScheduledAt = &scheduledTime
-		campaign.Status = domain.CampaignStatusScheduled
-	}
-
 	if err := h.campaignRepo.Create(campaign); err != nil {
 		h.log.Error("Failed to create campaign", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -103,19 +93,7 @@ func (h *CampaignHandler) Create(c *gin.Context) {
 	}
 
 	if len(input.ContactIDs) > 0 {
-		isScheduled := campaign.Status == domain.CampaignStatusScheduled
-		messages := h.createMessagesForCampaign(campaign, input.ContactIDs, input.Template)
-
-		if !isScheduled && len(messages) > 0 {
-			go h.processCampaignMessages(campaign, messages)
-		}
-	} else {
-		h.waService.PushCampaignUpdate(campaign.TenantID, map[string]interface{}{
-			"campaign_id":   campaign.ID,
-			"status":        campaign.Status,
-			"success_count": 0,
-			"failed_count":  0,
-		})
+		h.createMessagesForCampaign(campaign, input.ContactIDs, input.Template)
 	}
 
 	c.JSON(http.StatusCreated, campaign)
@@ -200,11 +178,18 @@ func (h *CampaignHandler) Get(c *gin.Context) {
 
 	total, success, failed, _ := h.messageRepo.CountByCampaignID(campaignID)
 
+	messages, _ := h.messageRepo.FindByCampaignID(campaignID)
+	var contactIDs []string
+	for _, msg := range messages {
+		contactIDs = append(contactIDs, msg.ContactID)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"campaign": campaign,
-		"total":    total,
-		"success":  success,
-		"failed":   failed,
+		"campaign":    campaign,
+		"total":       total,
+		"success":     success,
+		"failed":      failed,
+		"contact_ids": contactIDs,
 	})
 }
 
@@ -291,6 +276,16 @@ func (h *CampaignHandler) Send(c *gin.Context) {
 }
 
 func (h *CampaignHandler) processCampaignMessages(campaign *domain.Campaign, messages []domain.Message) {
+	campaign.Status = domain.CampaignStatusRunning
+	h.campaignRepo.Update(campaign)
+
+	h.waService.PushCampaignUpdate(campaign.TenantID, map[string]interface{}{
+		"campaign_id":   campaign.ID,
+		"status":        "running",
+		"success_count": 0,
+		"failed_count":  0,
+	})
+
 	defer func() {
 		campaign.Status = domain.CampaignStatusCompleted
 		h.campaignRepo.Update(campaign)
@@ -362,9 +357,6 @@ func (h *CampaignHandler) createMessagesForCampaign(campaign *domain.Campaign, c
 		h.messageRepo.CreateBatch(messages)
 
 		campaign.TotalCount = len(messages)
-		if campaign.Status != domain.CampaignStatusScheduled {
-			campaign.Status = domain.CampaignStatusRunning
-		}
 		h.campaignRepo.Update(campaign)
 	}
 
