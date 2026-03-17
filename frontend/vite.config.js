@@ -5,9 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    allowedHosts: ['wa.ajitama.dev'],
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://api:8080',
         changeOrigin: true,
         ws: true
       }
