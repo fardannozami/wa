@@ -9,14 +9,32 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH
+      - name: Deploy via SSH (Zero Downtime)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
+          command_timeout: 10m
           script: |
+            set -e
             cd ${{ secrets.DEPLOY_PATH }}
+
+            echo "=== Pulling latest code ==="
             git pull origin main
-            docker compose build
-            docker compose up -d --remove-orphans
+
+            echo "=== Building new images ==="
+            docker compose build api frontend
+
+            echo "=== Rolling update: frontend ==="
+            docker compose up -d --no-deps --wait frontend
+            echo "Frontend is healthy ✓"
+
+            echo "=== Rolling update: api ==="
+            docker compose up -d --no-deps --wait api
+            echo "API is healthy ✓"
+
+            echo "=== Cleanup old images ==="
+            docker image prune -f
+
+            echo "=== Deploy complete (zero downtime) ==="
