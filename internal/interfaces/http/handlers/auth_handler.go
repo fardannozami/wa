@@ -111,7 +111,19 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	redirectURL := "http://localhost:3000/oauth/callback?token=" + jwtToken
+	// Build frontend redirect URL dynamically
+	scheme := "https"
+	if c.Request.TLS == nil {
+		scheme = c.GetHeader("X-Forwarded-Proto")
+		if scheme == "" {
+			scheme = "http"
+		}
+	}
+	host := c.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+	redirectURL := scheme + "://" + host + "/oauth/callback?token=" + jwtToken
 	c.Redirect(http.StatusFound, redirectURL)
 }
 
