@@ -8,8 +8,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/coder/websocket"
 	_ "github.com/mattn/go-sqlite3"
@@ -41,13 +44,15 @@ type WAService interface {
 	HandleQRWebSocket(tenantID string, w http.ResponseWriter, r *http.Request)
 	PushCampaignUpdate(tenantID string, data map[string]interface{})
 	GetJoinedGroups(tenantID string) ([]map[string]interface{}, error)
-	ImportGroupContacts(tenantID, groupJID string) ([]map[string]interface{}, error)
+	ImportGroupContacts(tenantID, groupJID string) (int, error)
 	Shutdown()
 }
 
 type WhatsAppService struct {
-	deviceRepo domain.DeviceRepository
-	sessionDir string
+	deviceRepo  domain.DeviceRepository
+	contactRepo domain.ContactRepository
+	groupRepo   domain.GroupRepository
+	sessionDir  string
 
 	mu      sync.RWMutex
 	clients map[string]*WhatsMeowClient
@@ -64,12 +69,14 @@ type WhatsMeowClient struct {
 	Phone    string
 }
 
-func NewWhatsAppService(deviceRepo domain.DeviceRepository, sessionDir string) *WhatsAppService {
+func NewWhatsAppService(deviceRepo domain.DeviceRepository, contactRepo domain.ContactRepository, groupRepo domain.GroupRepository, sessionDir string) *WhatsAppService {
 	return &WhatsAppService{
-		deviceRepo: deviceRepo,
-		sessionDir: sessionDir,
-		clients:    make(map[string]*WhatsMeowClient),
-		wsConns:    make(map[string]*websocket.Conn),
+		deviceRepo:  deviceRepo,
+		contactRepo: contactRepo,
+		groupRepo:   groupRepo,
+		sessionDir:  sessionDir,
+		clients:     make(map[string]*WhatsMeowClient),
+		wsConns:     make(map[string]*websocket.Conn),
 	}
 }
 
@@ -395,7 +402,7 @@ func (s *WhatsAppService) Shutdown() {
 }
 
 func (s *WhatsAppService) generateID() string {
-	return fmt.Sprintf("dev_%d", time.Now().UnixNano())
+	return uuid.New().String()
 }
 
 func (s *WhatsAppService) PushCampaignUpdate(tenantID string, data map[string]interface{}) {
@@ -463,19 +470,41 @@ func (s *WhatsAppService) GetJoinedGroups(tenantID string) ([]map[string]interfa
 	client, ok := s.clients[tenantID]
 	s.mu.RUnlock()
 
-	if !ok || client == nil || client.Client == nil {
-		return nil, fmt.Errorf("device not connected")
+	isConnected := client != nil && client.Client != nil && client.Client.IsConnected()
+	fmt.Printf("[GetJoinedGroups] tenantID=%s, inMap=%v, clientNil=%v, IsConnected=%v\n", tenantID, ok, client == nil, isConnected)
+
+	if !isConnected {
+		device, err := s.deviceRepo.FindByTenantID(tenantID)
+		fmt.Printf("[GetJoinedGroups] device status from DB: %s, err: %v\n", device.Status, err)
+		if err == nil && device.Status == domain.DeviceStatusConnected {
+			fmt.Printf("[GetJoinedGroups] Attempting to reconnect...\n")
+			if err := s.Connect(tenantID); err != nil {
+				return nil, fmt.Errorf("device not connected: %w", err)
+			}
+			s.mu.RLock()
+			client, ok = s.clients[tenantID]
+			s.mu.RUnlock()
+			if !ok || client == nil || client.Client == nil || !client.Client.IsConnected() {
+				return nil, fmt.Errorf("device not connected after reconnect")
+			}
+		} else {
+			return nil, fmt.Errorf("device not connected")
+		}
 	}
 
-	groups, err := client.Client.GetJoinedGroups(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	groups, err := client.Client.GetJoinedGroups(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get groups: %w", err)
 	}
 
 	var result []map[string]interface{}
 	for _, group := range groups {
 		result = append(result, map[string]interface{}{
 			"jid":   group.JID.String(),
+			"group": group.Name,
 			"name":  group.Name,
 			"phone": group.JID.User,
 		})
@@ -484,36 +513,112 @@ func (s *WhatsAppService) GetJoinedGroups(tenantID string) ([]map[string]interfa
 	return result, nil
 }
 
-func (s *WhatsAppService) ImportGroupContacts(tenantID, groupJID string) ([]map[string]interface{}, error) {
+func (s *WhatsAppService) ImportGroupContacts(tenantID, groupJID string) (int, error) {
 	s.mu.RLock()
 	client, ok := s.clients[tenantID]
 	s.mu.RUnlock()
 
-	if !ok || client == nil || client.Client == nil {
-		return nil, fmt.Errorf("device not connected")
+	if !ok || client == nil || client.Client == nil || !client.Client.IsConnected() {
+		device, err := s.deviceRepo.FindByTenantID(tenantID)
+		if err == nil && device.Status == domain.DeviceStatusConnected {
+			if err := s.Connect(tenantID); err != nil {
+				return 0, fmt.Errorf("device not connected: %w", err)
+			}
+			s.mu.RLock()
+			client, ok = s.clients[tenantID]
+			s.mu.RUnlock()
+			if !ok || client == nil || client.Client == nil || !client.Client.IsConnected() {
+				return 0, fmt.Errorf("device not connected")
+			}
+		} else {
+			return 0, fmt.Errorf("device not connected")
+		}
 	}
 
-	group := types.NewJID(groupJID, types.GroupServer)
-
-	resp, err := client.Client.GetGroupInfo(context.Background(), group)
+	jid, err := types.ParseJID(groupJID)
 	if err != nil {
-		return nil, err
+		return 0, fmt.Errorf("invalid group JID: %w", err)
 	}
 
-	var result []map[string]interface{}
-	for _, participant := range resp.Participants {
-		phone := participant.JID.User
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	resp, err := client.Client.GetGroupInfo(ctx, jid)
+	if err != nil {
+		if strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "deadline") {
+			return 0, fmt.Errorf("group not accessible - you may no longer be a member of this group, or WhatsApp servers are slow. Try refreshing the group list")
+		}
+		return 0, fmt.Errorf("failed to get group info: %w", err)
+	}
+
+	var participantJIDs []types.JID
+		// Try to get participants from linked groups if it's a community
+	linkedParticipants, err := client.Client.GetLinkedGroupsParticipants(ctx, jid)
+	if err == nil && len(linkedParticipants) > 0 {
+		participantJIDs = linkedParticipants
+	} else {
+		// Fallback to regular group participants
+		for _, p := range resp.Participants {
+			participantJIDs = append(participantJIDs, p.JID)
+		}
+	}
+
+	// Find or create group in DB
+	groupName := resp.Name
+	if groupName == "" {
+		groupName = "Imported Group"
+	}
+	dbGroup, err := s.groupRepo.FindByTenantIDAndName(tenantID, groupName)
+	if err != nil {
+		dbGroup = &domain.Group{
+			ID:       uuid.New().String(),
+			TenantID: tenantID,
+			Name:     groupName,
+		}
+		if err := s.groupRepo.Create(dbGroup); err != nil {
+			fmt.Printf("[WhatsMeow] Failed to create group record: %v\n", err)
+		}
+	}
+
+	var contacts []domain.Contact
+	for _, pJID := range participantJIDs {
+		if pJID.Server == "lid" {
+			pn, err := client.Client.Store.LIDs.GetPNForLID(ctx, pJID)
+			if err == nil && !pn.IsEmpty() {
+				pJID = pn
+			} else {
+				// Cannot resolve LID to a real phone number right now
+				continue
+			}
+		}
+
+		phone := pJID.User
 		if phone == "" {
 			continue
 		}
 
-		name := ""
+		// Try to get contact name from store
+		contactName := ""
+		if contact, err := client.Client.Store.Contacts.GetContact(ctx, pJID); err == nil {
+			if contact.PushName != "" {
+				contactName = contact.PushName
+			} else if contact.FullName != "" {
+				contactName = contact.FullName
+			}
+		}
 
-		result = append(result, map[string]interface{}{
-			"phone": phone,
-			"name":  name,
+		contacts = append(contacts, domain.Contact{
+			ID:       uuid.New().String(),
+			TenantID: tenantID,
+			Phone:    phone,
+			Name:     contactName,
+			Groups:   []domain.Group{*dbGroup},
 		})
 	}
 
-	return result, nil
+	if err := s.contactRepo.UpsertBatch(contacts); err != nil {
+		return 0, fmt.Errorf("failed to save contacts: %w", err)
+	}
+
+	return len(contacts), nil
 }

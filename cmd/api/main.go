@@ -43,7 +43,7 @@ func main() {
 	campaignRepo := repository.NewCampaignRepository(db)
 	messageRepo := repository.NewMessageRepository(db)
 
-	waService := whatsapp.NewWhatsAppService(deviceRepo, cfg.SessionDir)
+	waService := whatsapp.NewWhatsAppService(deviceRepo, contactRepo, groupRepo, cfg.SessionDir)
 
 	campaignScheduler := scheduler.NewCampaignScheduler(campaignRepo, messageRepo, waService)
 	campaignScheduler.Start()

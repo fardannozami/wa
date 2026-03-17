@@ -163,22 +163,9 @@ export default function Contacts() {
     setImportingFromGroup(group.jid)
     try {
       const { data } = await deviceApi.importGroup(group.jid)
-      const contacts = data.data || []
+      const count = data.data?.imported_count || 0
       
-      for (const c of contacts) {
-        try {
-          await contactApi.create({
-            name: c.name || 'Unknown',
-            phone: c.phone,
-            prefix: '',
-            group_ids: []
-          })
-        } catch (e) {
-          // Skip duplicates or errors
-        }
-      }
-      
-      toast.success(`Imported ${contacts.length} contacts from ${group.name}`)
+      toast.success(`Imported ${count} contacts from ${group.name}`)
       setShowWhatsappModal(false)
       loadContacts()
     } catch (e) {

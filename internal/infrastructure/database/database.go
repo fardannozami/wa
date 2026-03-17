@@ -36,7 +36,7 @@ func NewPostgresDB(dsn string, logLevel string) (*gorm.DB, error) {
 }
 
 func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(
+	err := db.AutoMigrate(
 		&domain.User{},
 		&domain.Tenant{},
 		&domain.Device{},
@@ -45,4 +45,11 @@ func Migrate(db *gorm.DB) error {
 		&domain.Campaign{},
 		&domain.Message{},
 	)
+	if err != nil {
+		return err
+	}
+
+	// Ensure composite unique index exists for contact upsert ON CONFLICT
+	db.Exec("DROP INDEX IF EXISTS idx_phone_tenant")
+	return db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_phone_tenant ON contacts (phone, tenant_id)").Error
 }

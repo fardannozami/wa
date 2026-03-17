@@ -23,6 +23,15 @@ func (r *GroupRepository) FindByTenantID(tenantID string) ([]domain.Group, error
 	return groups, err
 }
 
+func (r *GroupRepository) FindByTenantIDAndName(tenantID string, name string) (*domain.Group, error) {
+	var group domain.Group
+	err := r.db.Where("tenant_id = ? AND name = ?", tenantID, name).First(&group).Error
+	if err != nil {
+		return nil, err
+	}
+	return &group, nil
+}
+
 func (r *GroupRepository) FindByID(id string) (*domain.Group, error) {
 	var group domain.Group
 	err := r.db.First(&group, "id = ?", id).Error

@@ -4,7 +4,7 @@ import "time"
 
 type Contact struct {
 	ID        string    `json:"id" gorm:"primaryKey;type:uuid"`
-	TenantID  string    `json:"tenant_id" gorm:"type:uuid;not null;index"`
+	TenantID  string    `json:"tenant_id" gorm:"type:uuid;not null;index;uniqueIndex:idx_phone_tenant"`
 	Name      string    `json:"name" gorm:"type:varchar(255)"`
 	Phone     string    `json:"phone" gorm:"type:varchar(50);not null;uniqueIndex:idx_phone_tenant"`
 	Prefix    string    `json:"prefix" gorm:"type:varchar(20)"`
@@ -24,6 +24,7 @@ type Group struct {
 type ContactRepository interface {
 	Create(contact *Contact) error
 	CreateBatch(contacts []Contact) error
+	UpsertBatch(contacts []Contact) error
 	FindByTenantID(tenantID string, page, limit int) ([]Contact, int64, error)
 	FindByTenantIDAndGroupID(tenantID string, groupID string, page, limit int) ([]Contact, int64, error)
 	FindByID(id string) (*Contact, error)
@@ -39,6 +40,7 @@ type ContactRepository interface {
 type GroupRepository interface {
 	Create(group *Group) error
 	FindByTenantID(tenantID string) ([]Group, error)
+	FindByTenantIDAndName(tenantID string, name string) (*Group, error)
 	FindByID(id string) (*Group, error)
 	Update(group *Group) error
 	Delete(id string) error

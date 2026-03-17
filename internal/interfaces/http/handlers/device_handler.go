@@ -119,12 +119,12 @@ func (h *DeviceHandler) ImportGroupContacts(c *gin.Context) {
 		return
 	}
 
-	contacts, err := h.waService.ImportGroupContacts(tenantID, input.GroupJID)
+	count, err := h.waService.ImportGroupContacts(tenantID, input.GroupJID)
 	if err != nil {
 		h.log.Error("Failed to import group contacts", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": contacts})
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"imported_count": count}})
 }
