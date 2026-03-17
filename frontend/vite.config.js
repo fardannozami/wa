@@ -8,7 +8,7 @@ export default defineConfig({
     allowedHosts: ['wa.ajitama.dev'],
     proxy: {
       '/api': {
-        target: 'http://api:8080',
+        target: process.env.API_URL || 'http://localhost:8080',
         changeOrigin: true,
         ws: true
       }

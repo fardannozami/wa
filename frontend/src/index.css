@@ -224,6 +224,25 @@ body {
   border-color: var(--border-light);
 }
 
+input[type="date"],
+input[type="time"] {
+  color: var(--text-primary);
+  /* Optional: standardize padding but allow native picker width */
+}
+
+/* Invert the calendar/clock icon color in dark mode so it's visible against dark background */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) hue-rotate(180deg) brightness(1.5);
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 /* ═══════════════ BUTTONS ═══════════════ */
 .btn {
   display: inline-flex;

@@ -69,6 +69,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    environment:
+      - API_URL=http://api:8080
     restart: always
     depends_on:
       api:
