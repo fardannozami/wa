@@ -103,11 +103,19 @@ func (h *CampaignHandler) Create(c *gin.Context) {
 	}
 
 	if len(input.ContactIDs) > 0 {
+		isScheduled := campaign.Status == domain.CampaignStatusScheduled
 		messages := h.createMessagesForCampaign(campaign, input.ContactIDs, input.Template)
 
-		if campaign.Status == domain.CampaignStatusDraft && len(messages) > 0 {
+		if !isScheduled && len(messages) > 0 {
 			go h.processCampaignMessages(campaign, messages)
 		}
+	} else {
+		h.waService.PushCampaignUpdate(campaign.TenantID, map[string]interface{}{
+			"campaign_id":   campaign.ID,
+			"status":        campaign.Status,
+			"success_count": 0,
+			"failed_count":  0,
+		})
 	}
 
 	c.JSON(http.StatusCreated, campaign)
