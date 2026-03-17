@@ -47,6 +47,10 @@ export default function Device() {
         } else if (data.type === 'failed') {
           setStatus('disconnected')
           setQrCode(null)
+        } else if (data.type === 'logged_out') {
+          setStatus('disconnected')
+          setQrCode(null)
+          setPhone('')
         }
       } catch (e) {
         console.error('[WS] Failed to parse message:', e)

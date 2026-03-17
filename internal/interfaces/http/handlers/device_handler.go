@@ -34,6 +34,13 @@ func (h *DeviceHandler) Get(c *gin.Context) {
 		return
 	}
 
+	// Override DB status with real status from Whatsmeow
+	status, phone, _ := h.waService.GetStatus(tenantID)
+	device.Status = status
+	if phone != "" {
+		device.PhoneNumber = phone
+	}
+
 	c.JSON(http.StatusOK, gin.H{"device": device})
 }
 

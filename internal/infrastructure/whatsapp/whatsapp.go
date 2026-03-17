@@ -116,6 +116,12 @@ func (s *WhatsAppService) GenerateQR(tenantID string) (QRCode, error) {
 	deviceStore, err := container.GetFirstDevice(context.Background())
 	if err != nil {
 		deviceStore = container.NewDevice()
+	} else if deviceStore.ID != nil {
+		// If the store already has an ID, we can't generate a QR code for it.
+		// This happens if a previous disconnect didn't fully wipe the SQLite DB.
+		// We explicitly delete the old session and create a fresh one.
+		_ = deviceStore.Delete(context.Background())
+		deviceStore = container.NewDevice()
 	}
 
 	clientLog := waLog.Stdout("Client", "ERROR", true)
@@ -228,20 +234,70 @@ func (s *WhatsAppService) handleEvent(tenantID string, evt interface{}) {
 			c.Status = domain.DeviceStatusDisconnected
 		}
 		s.mu.Unlock()
+	case *events.LoggedOut:
+		fmt.Printf("[WhatsMeow] Logged Out for tenant %s\n", tenantID)
+		
+		device, err := s.deviceRepo.FindByTenantID(tenantID)
+		if err == nil {
+			device.Status = domain.DeviceStatusDisconnected
+			device.JID = ""
+			_ = s.deviceRepo.Update(device)
+		}
+
+		s.mu.Lock()
+		delete(s.clients, tenantID)
+		s.mu.Unlock()
+
+		s.pushToWebSocket(tenantID, map[string]interface{}{
+			"type":   "logged_out",
+			"status": domain.DeviceStatusDisconnected,
+		})
 	}
 }
 
 func (s *WhatsAppService) GetStatus(tenantID string) (domain.DeviceStatus, string, error) {
+	s.mu.RLock()
+	client, exists := s.clients[tenantID]
+	s.mu.RUnlock()
+
+	// 1. Check from existing whatsmeow client in memory
+	if exists && client != nil && client.Client != nil {
+		if client.Client.IsConnected() {
+			return domain.DeviceStatusConnected, client.Phone, nil
+		}
+		if client.Status == domain.DeviceStatusQRGenerated {
+			return domain.DeviceStatusQRGenerated, client.Phone, nil
+		}
+		return domain.DeviceStatusDisconnected, client.Phone, nil
+	}
+
+	// 2. Not in memory, check from DB.
 	device, err := s.deviceRepo.FindByTenantID(tenantID)
 	if err != nil {
 		return domain.DeviceStatusDisconnected, "", err
 	}
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	// 3. If the DB thinks it's connected, but it's not in memory, try to spin it up.
+	// This ensures that after a server restart, the API returns the actual status from Whatsmeow.
+	if device.Status == domain.DeviceStatusConnected {
+		fmt.Printf("[WhatsMeow] Instance not in memory, attempting to restore connection for tenant %s\n", tenantID)
+		err := s.Connect(tenantID)
+		if err == nil {
+			s.mu.RLock()
+			newClient := s.clients[tenantID]
+			s.mu.RUnlock()
+			if newClient != nil {
+				return domain.DeviceStatusConnected, newClient.Phone, nil
+			}
+			return domain.DeviceStatusConnected, device.PhoneNumber, nil
+		}
 
-	if client, exists := s.clients[tenantID]; exists {
-		return client.Status, client.Phone, nil
+		fmt.Printf("[WhatsMeow] Failed to restore connection: %v\n", err)
+		// Update DB so it reflects WhatsApp's actual disconnected state
+		device.Status = domain.DeviceStatusDisconnected
+		_ = s.deviceRepo.Update(device)
+
+		return domain.DeviceStatusDisconnected, device.PhoneNumber, nil
 	}
 
 	return device.Status, device.PhoneNumber, nil
@@ -318,7 +374,11 @@ func (s *WhatsAppService) Disconnect(tenantID string) error {
 
 	if client, exists := s.clients[tenantID]; exists {
 		if client.Client != nil {
+			_ = client.Client.Logout(context.Background())
 			client.Client.Disconnect()
+			if client.Client.Store != nil {
+				_ = client.Client.Store.Delete(context.Background())
+			}
 		}
 		delete(s.clients, tenantID)
 	}
