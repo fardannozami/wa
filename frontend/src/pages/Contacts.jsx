@@ -14,7 +14,7 @@ export default function Contacts() {
   const [messageText, setMessageText] = useState('')
   const [sending, setSending] = useState(false)
   const [deviceStatus, setDeviceStatus] = useState('disconnected')
-  const [formData, setFormData] = useState({ name: '', phone: '', group_ids: [] })
+  const [formData, setFormData] = useState({ name: '', phone: '', prefix: '', group_ids: [] })
   const [selectedGroup, setSelectedGroup] = useState('')
   const [groups, setGroups] = useState([])
   const [showGroupModal, setShowGroupModal] = useState(false)
@@ -101,7 +101,7 @@ export default function Contacts() {
       }
       setShowModal(false)
       setEditingContact(null)
-      setFormData({ name: '', phone: '', group_ids: [] })
+      setFormData({ name: '', phone: '', prefix: '', group_ids: [] })
       loadContacts()
     } catch (e) {
       console.error(e)
@@ -112,13 +112,13 @@ export default function Contacts() {
   const openEditModal = (contact) => {
     setEditingContact(contact)
     const groupIds = contact.groups ? contact.groups.map(g => g.id) : []
-    setFormData({ name: contact.name, phone: contact.phone, group_ids: groupIds })
+    setFormData({ name: contact.name, phone: contact.phone, prefix: contact.prefix || '', group_ids: groupIds })
     setShowModal(true)
   }
 
   const openAddModal = () => {
     setEditingContact(null)
-    setFormData({ name: '', phone: '', group_ids: [] })
+    setFormData({ name: '', phone: '', prefix: '', group_ids: [] })
     setShowModal(true)
   }
 
@@ -228,10 +228,11 @@ export default function Contacts() {
       const contacts = data.data || []
       
       const csvContent = [
-        ['Name', 'Phone', 'Groups'].join(','),
+        ['Name', 'Phone', 'Prefix', 'Groups'].join(','),
         ...contacts.map(c => [
           `"${c.name || ''}"`,
           `"${c.phone || ''}"`,
+          `"${c.prefix || ''}"`,
           `"${c.groups && c.groups.length > 0 ? c.groups.map(g => g.name).join(',') : ''}"`
         ].join(','))
       ].join('\n')
@@ -250,10 +251,10 @@ export default function Contacts() {
 
   const downloadTemplate = () => {
     const template = [
-      'Name,Phone,Groups',
-      'John Doe,628123456789,Customer',
-      'Jane Smith,628987654321,"VIP,Premium"',
-      'Bob Wilson,628111222333,Customer,Premium'
+      'Name,Phone,Prefix,Groups',
+      'John Doe,628123456789,Pak,Customer',
+      'Jane Smith,628987654321,Bu,"VIP,Premium"',
+      'Bob Wilson,628111222333,Boss,"Customer,Premium"'
     ].join('\n')
 
     const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' })
@@ -316,6 +317,7 @@ export default function Contacts() {
                 <tr>
                   <th>Name</th>
                   <th>Phone</th>
+                  <th>Prefix</th>
                   <th>Group</th>
                   <th>Actions</th>
                 </tr>
@@ -323,8 +325,9 @@ export default function Contacts() {
               <tbody>
                 {contacts.map((contact) => (
                   <tr key={contact.id}>
-                    <td>{contact.name}</td>
+                    <td>{contact.prefix ? `${contact.prefix} ${contact.name}` : contact.name}</td>
                     <td>{contact.phone}</td>
+                    <td>{contact.prefix || '-'}</td>
                     <td>{contact.groups && contact.groups.length > 0 ? contact.groups.map(g => g.name).join(', ') : '-'}</td>
                     <td>
                       <button onClick={() => openMessageModal(contact)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px', marginRight: '8px' }} disabled={deviceStatus !== 'connected' && deviceStatus !== 'active'}>
@@ -386,6 +389,25 @@ export default function Contacts() {
                     placeholder="+62812345678"
                     required
                   />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Prefix</label>
+                  <select
+                    className="form-input"
+                    value={formData.prefix}
+                    onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
+                  >
+                    <option value="">-</option>
+                    <option value="Pak">Pak</option>
+                    <option value="Bu">Bu</option>
+                    <option value="Bapak">Bapak</option>
+                    <option value="Ibu">Ibu</option>
+                    <option value="Boss">Boss</option>
+                    <option value="Saudara">Saudara</option>
+                    <option value="Saudari">Saudari</option>
+                    <option value="Tn">Tn</option>
+                    <option value="Ny">Ny</option>
+                  </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Groups (select multiple)</label>

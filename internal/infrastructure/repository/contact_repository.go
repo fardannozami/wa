@@ -83,6 +83,7 @@ func (r *ContactRepository) Update(contact *domain.Contact) error {
 
 		existing.Name = contact.Name
 		existing.Phone = contact.Phone
+		existing.Prefix = contact.Prefix
 
 		if err := tx.Save(&existing).Error; err != nil {
 			return err

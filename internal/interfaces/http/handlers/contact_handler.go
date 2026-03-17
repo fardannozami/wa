@@ -67,6 +67,7 @@ func (h *ContactHandler) Create(c *gin.Context) {
 	var input struct {
 		Name     string   `json:"name" binding:"required"`
 		Phone    string   `json:"phone" binding:"required"`
+		Prefix   string   `json:"prefix"`
 		GroupIDs []string `json:"group_ids"`
 	}
 
@@ -82,6 +83,7 @@ func (h *ContactHandler) Create(c *gin.Context) {
 		TenantID: tenantID,
 		Name:     input.Name,
 		Phone:    h.sanitizePhone(input.Phone),
+		Prefix:   input.Prefix,
 	}
 
 	if len(input.GroupIDs) > 0 {
@@ -112,6 +114,7 @@ func (h *ContactHandler) Update(c *gin.Context) {
 	var input struct {
 		Name     string   `json:"name"`
 		Phone    string   `json:"phone"`
+		Prefix   string   `json:"prefix"`
 		GroupIDs []string `json:"group_ids"`
 	}
 
@@ -137,6 +140,7 @@ func (h *ContactHandler) Update(c *gin.Context) {
 	if input.Phone != "" {
 		contact.Phone = h.sanitizePhone(input.Phone)
 	}
+	contact.Prefix = input.Prefix
 	if input.GroupIDs != nil {
 		contact.Groups = nil
 		for _, gid := range input.GroupIDs {
@@ -223,13 +227,19 @@ func (h *ContactHandler) ImportCSV(c *gin.Context) {
 
 		phone := h.sanitizePhone(record[1])
 		name := strings.TrimSpace(record[0])
+		prefix := ""
+		if len(record) >= 3 {
+			prefix = strings.TrimSpace(record[2])
+		}
 
 		existingContact, err := h.contactRepo.FindByPhone(tenantID, phone)
 		if err == nil && existingContact != nil {
 			existingContact.Name = name
-			if len(record) >= 3 && strings.TrimSpace(record[2]) != "" {
-				var groupIDs []string
-				groupNames := strings.Split(record[2], ",")
+			existingContact.Prefix = prefix
+
+			var groupIDs []string
+			if len(record) >= 4 && strings.TrimSpace(record[3]) != "" {
+				groupNames := strings.Split(record[3], ",")
 				for _, gn := range groupNames {
 					gn = strings.TrimSpace(gn)
 					if gn != "" {
@@ -238,13 +248,15 @@ func (h *ContactHandler) ImportCSV(c *gin.Context) {
 						}
 					}
 				}
-				if len(groupIDs) > 0 {
-					existingContact.Groups = nil
-					for _, gid := range groupIDs {
-						existingContact.Groups = append(existingContact.Groups, domain.Group{ID: gid})
-					}
-					h.contactRepo.Update(existingContact)
+			}
+			if len(groupIDs) > 0 {
+				existingContact.Groups = nil
+				for _, gid := range groupIDs {
+					existingContact.Groups = append(existingContact.Groups, domain.Group{ID: gid})
 				}
+				h.contactRepo.Update(existingContact)
+			} else {
+				h.contactRepo.Update(existingContact)
 			}
 			updatedCount++
 		} else {
@@ -253,10 +265,11 @@ func (h *ContactHandler) ImportCSV(c *gin.Context) {
 				TenantID: tenantID,
 				Name:     name,
 				Phone:    phone,
+				Prefix:   prefix,
 			}
 
-			if len(record) >= 3 && strings.TrimSpace(record[2]) != "" {
-				groupNames := strings.Split(record[2], ",")
+			if len(record) >= 4 && strings.TrimSpace(record[3]) != "" {
+				groupNames := strings.Split(record[3], ",")
 				for _, gn := range groupNames {
 					gn = strings.TrimSpace(gn)
 					if gn != "" {

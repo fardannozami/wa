@@ -7,6 +7,7 @@ type Contact struct {
 	TenantID  string    `json:"tenant_id" gorm:"type:uuid;not null;index"`
 	Name      string    `json:"name" gorm:"type:varchar(255)"`
 	Phone     string    `json:"phone" gorm:"type:varchar(50);not null;uniqueIndex:idx_phone_tenant"`
+	Prefix    string    `json:"prefix" gorm:"type:varchar(20)"`
 	Groups    []Group   `json:"groups" gorm:"many2many:contact_groups;"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
