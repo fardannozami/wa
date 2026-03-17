@@ -72,6 +72,13 @@ func (s *CampaignScheduler) runCampaign(campaign *domain.Campaign) {
 	campaign.Status = domain.CampaignStatusRunning
 	s.campaignRepo.Update(campaign)
 
+	s.waService.PushCampaignUpdate(campaign.TenantID, map[string]interface{}{
+		"campaign_id":   campaign.ID,
+		"status":        "running",
+		"success_count": 0,
+		"failed_count":  0,
+	})
+
 	successCount := 0
 	failedCount := 0
 
@@ -89,6 +96,16 @@ func (s *CampaignScheduler) runCampaign(campaign *domain.Campaign) {
 		msg.SentAt = &now
 		s.messageRepo.Update(&msg)
 
+		campaign.SuccessCount = successCount
+		campaign.FailedCount = failedCount
+
+		s.waService.PushCampaignUpdate(campaign.TenantID, map[string]interface{}{
+			"campaign_id":   campaign.ID,
+			"status":        "running",
+			"success_count": successCount,
+			"failed_count":  failedCount,
+		})
+
 		if i > 0 && i%10 == 0 {
 			time.Sleep(2 * time.Second)
 		}
@@ -98,6 +115,13 @@ func (s *CampaignScheduler) runCampaign(campaign *domain.Campaign) {
 	campaign.SuccessCount = successCount
 	campaign.FailedCount = failedCount
 	s.campaignRepo.Update(campaign)
+
+	s.waService.PushCampaignUpdate(campaign.TenantID, map[string]interface{}{
+		"campaign_id":   campaign.ID,
+		"status":        "completed",
+		"success_count": successCount,
+		"failed_count":  failedCount,
+	})
 
 	fmt.Printf("[Scheduler] Campaign %s completed: success=%d, failed=%d\n", campaign.ID, successCount, failedCount)
 }
