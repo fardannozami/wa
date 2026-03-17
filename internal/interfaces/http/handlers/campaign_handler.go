@@ -404,11 +404,7 @@ func (h *CampaignHandler) createMessagesForCampaign(campaign *domain.Campaign, c
 			continue
 		}
 
-		displayName := contact.Name
-		if contact.Prefix != "" {
-			displayName = contact.Prefix + " " + contact.Name
-		}
-		message := h.replaceTemplate(template, displayName)
+		message := h.replaceTemplate(template, contact.Prefix, contact.Name)
 
 		messages = append(messages, domain.Message{
 			ID:         uuid.New().String(),
@@ -431,6 +427,8 @@ func (h *CampaignHandler) createMessagesForCampaign(campaign *domain.Campaign, c
 	return messages
 }
 
-func (h *CampaignHandler) replaceTemplate(template, name string) string {
-	return strings.ReplaceAll(template, "{{name}}", name)
+func (h *CampaignHandler) replaceTemplate(template, prefix, name string) string {
+	res := strings.ReplaceAll(template, "{{name}}", name)
+	res = strings.ReplaceAll(res, "{{prefix}}", prefix)
+	return res
 }

@@ -28,6 +28,7 @@ export default function Campaigns() {
   const [selectMode, setSelectMode] = useState('group')
   const [loadingContacts, setLoadingContacts] = useState(false)
   const wsRef = useRef(null)
+  const templateRef = useRef(null)
 
   const connectWebSocket = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -203,6 +204,27 @@ export default function Campaigns() {
     if (selectMode === 'group' && groupId) {
       await loadContacts(groupId)
     }
+  }
+
+  const insertPlaceholder = (tag) => {
+    const textarea = templateRef.current
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const text = formData.template
+    const before = text.substring(0, start)
+    const after = text.substring(end)
+    const newText = before + tag + after
+
+    setFormData({ ...formData, template: newText })
+    
+    // Focus back and set cursor after the inserted tag
+    setTimeout(() => {
+      textarea.focus()
+      const newPos = start + tag.length
+      textarea.setSelectionRange(newPos, newPos)
+    }, 0)
   }
 
   const openModal = async () => {
@@ -473,15 +495,48 @@ export default function Campaigns() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Message Template</label>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => insertPlaceholder('{{prefix}}')}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '12px',
+                        background: '#f3f4f6',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        color: '#374151'
+                      }}
+                    >
+                      + prefix
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => insertPlaceholder('{{name}}')}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '12px',
+                        background: '#f3f4f6',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        color: '#374151'
+                      }}
+                    >
+                      + name
+                    </button>
+                  </div>
                   <textarea
+                    ref={templateRef}
                     className="form-input"
                     rows={4}
                     value={formData.template}
                     onChange={(e) => setFormData({ ...formData, template: e.target.value })}
-                    placeholder="Hello {{name}}, this is your message..."
+                    placeholder="Hello {{prefix}} {{name}}, this is your message..."
                     required
                   />
-                  <small style={{ color: '#666' }}>Use {"{{name}}"} to personalize messages</small>
+                  <small style={{ color: '#666' }}>Use {"{{prefix}}"} and {"{{name}}"} to personalize messages</small>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Select Contacts</label>
