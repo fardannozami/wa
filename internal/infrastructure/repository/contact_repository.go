@@ -68,7 +68,7 @@ func (r *ContactRepository) FindByTenantID(tenantID string, page, limit int) ([]
 		return nil, 0, err
 	}
 
-	err = r.db.Preload("Groups").Where("tenant_id = ?", tenantID).Offset(offset).Limit(limit).Find(&contacts).Error
+	err = r.db.Preload("Groups").Where("tenant_id = ?", tenantID).Order("updated_at desc").Offset(offset).Limit(limit).Find(&contacts).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -93,7 +93,7 @@ func (r *ContactRepository) FindByTenantIDAndGroupID(tenantID string, groupID st
 		return nil, 0, err
 	}
 
-	err = query.Preload("Groups").Offset(offset).Limit(limit).Find(&contacts).Error
+	err = query.Preload("Groups").Order("updated_at desc").Offset(offset).Limit(limit).Find(&contacts).Error
 	if err != nil {
 		return nil, 0, err
 	}

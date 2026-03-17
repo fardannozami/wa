@@ -89,7 +89,7 @@ func (h *ContactHandler) Create(c *gin.Context) {
 	if len(input.GroupIDs) > 0 {
 		for _, gid := range input.GroupIDs {
 			if gid != "" {
-				contact.Groups = append(contact.Groups, domain.Group{ID: gid})
+				contact.Groups = append(contact.Groups, domain.Group{ID: gid, TenantID: tenantID})
 			}
 		}
 	}
@@ -145,7 +145,7 @@ func (h *ContactHandler) Update(c *gin.Context) {
 		contact.Groups = nil
 		for _, gid := range input.GroupIDs {
 			if gid != "" {
-				contact.Groups = append(contact.Groups, domain.Group{ID: gid})
+				contact.Groups = append(contact.Groups, domain.Group{ID: gid, TenantID: tenantID})
 			}
 		}
 	}
@@ -252,7 +252,7 @@ func (h *ContactHandler) ImportCSV(c *gin.Context) {
 			if len(groupIDs) > 0 {
 				existingContact.Groups = nil
 				for _, gid := range groupIDs {
-					existingContact.Groups = append(existingContact.Groups, domain.Group{ID: gid})
+					existingContact.Groups = append(existingContact.Groups, domain.Group{ID: gid, TenantID: tenantID})
 				}
 				h.contactRepo.Update(existingContact)
 			} else {
@@ -274,7 +274,7 @@ func (h *ContactHandler) ImportCSV(c *gin.Context) {
 					gn = strings.TrimSpace(gn)
 					if gn != "" {
 						if gid, ok := groupMap[strings.ToLower(gn)]; ok && gid != "" {
-							contact.Groups = append(contact.Groups, domain.Group{ID: gid})
+							contact.Groups = append(contact.Groups, domain.Group{ID: gid, TenantID: tenantID})
 						}
 					}
 				}
