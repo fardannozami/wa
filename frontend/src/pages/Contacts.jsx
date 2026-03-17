@@ -14,7 +14,7 @@ export default function Contacts() {
   const [messageText, setMessageText] = useState('')
   const [sending, setSending] = useState(false)
   const [deviceStatus, setDeviceStatus] = useState('disconnected')
-  const [formData, setFormData] = useState({ name: '', phone: '', group_id: '' })
+  const [formData, setFormData] = useState({ name: '', phone: '', group_ids: [] })
   const [selectedGroup, setSelectedGroup] = useState('')
   const [groups, setGroups] = useState([])
   const [showGroupModal, setShowGroupModal] = useState(false)
@@ -101,7 +101,7 @@ export default function Contacts() {
       }
       setShowModal(false)
       setEditingContact(null)
-      setFormData({ name: '', phone: '', group_id: '' })
+      setFormData({ name: '', phone: '', group_ids: [] })
       loadContacts()
     } catch (e) {
       console.error(e)
@@ -111,13 +111,14 @@ export default function Contacts() {
 
   const openEditModal = (contact) => {
     setEditingContact(contact)
-    setFormData({ name: contact.name, phone: contact.phone, group_id: contact.group_id || '' })
+    const groupIds = contact.groups ? contact.groups.map(g => g.id) : []
+    setFormData({ name: contact.name, phone: contact.phone, group_ids: groupIds })
     setShowModal(true)
   }
 
   const openAddModal = () => {
     setEditingContact(null)
-    setFormData({ name: '', phone: '', group_id: '' })
+    setFormData({ name: '', phone: '', group_ids: [] })
     setShowModal(true)
   }
 
@@ -227,11 +228,11 @@ export default function Contacts() {
       const contacts = data.data || []
       
       const csvContent = [
-        ['Name', 'Phone', 'Group'].join(','),
+        ['Name', 'Phone', 'Groups'].join(','),
         ...contacts.map(c => [
           `"${c.name || ''}"`,
           `"${c.phone || ''}"`,
-          `"${c.group_id ? groups.find(g => g.id === c.group_id)?.name || '' : ''}"`
+          `"${c.groups && c.groups.length > 0 ? c.groups.map(g => g.name).join(',') : ''}"`
         ].join(','))
       ].join('\n')
 
@@ -249,9 +250,10 @@ export default function Contacts() {
 
   const downloadTemplate = () => {
     const template = [
-      'Name,Phone,Group',
+      'Name,Phone,Groups',
       'John Doe,628123456789,Customer',
-      'Jane Smith,628987654321,VIP'
+      'Jane Smith,628987654321,"VIP,Premium"',
+      'Bob Wilson,628111222333,Customer,Premium'
     ].join('\n')
 
     const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' })
@@ -323,7 +325,7 @@ export default function Contacts() {
                   <tr key={contact.id}>
                     <td>{contact.name}</td>
                     <td>{contact.phone}</td>
-                    <td>{contact.group_id ? groups.find(g => g.id === contact.group_id)?.name || '-' : '-'}</td>
+                    <td>{contact.groups && contact.groups.length > 0 ? contact.groups.map(g => g.name).join(', ') : '-'}</td>
                     <td>
                       <button onClick={() => openMessageModal(contact)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px', marginRight: '8px' }} disabled={deviceStatus !== 'connected' && deviceStatus !== 'active'}>
                         Send
@@ -386,17 +388,26 @@ export default function Contacts() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Group</label>
-                  <select
-                    className="form-input"
-                    value={formData.group_id}
-                    onChange={(e) => setFormData({ ...formData, group_id: e.target.value })}
-                  >
-                    <option value="">No Group</option>
+                  <label className="form-label">Groups (select multiple)</label>
+                  <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #e0e0e0', borderRadius: '6px', padding: '10px' }}>
                     {groups.map(group => (
-                      <option key={group.id} value={group.id}>{group.name}</option>
+                      <label key={group.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}>
+                        <input
+                          type="checkbox"
+                          checked={formData.group_ids.includes(group.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({ ...formData, group_ids: [...formData.group_ids, group.id] })
+                            } else {
+                              setFormData({ ...formData, group_ids: formData.group_ids.filter(id => id !== group.id) })
+                            }
+                          }}
+                        />
+                        {group.name}
+                      </label>
                     ))}
-                  </select>
+                    {groups.length === 0 && <div style={{ color: '#666' }}>No groups available</div>}
+                  </div>
                 </div>
               </div>
               <div className="modal-footer">

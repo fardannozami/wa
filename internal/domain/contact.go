@@ -6,8 +6,8 @@ type Contact struct {
 	ID        string    `json:"id" gorm:"primaryKey;type:uuid"`
 	TenantID  string    `json:"tenant_id" gorm:"type:uuid;not null;index"`
 	Name      string    `json:"name" gorm:"type:varchar(255)"`
-	Phone     string    `json:"phone" gorm:"type:varchar(50);not null"`
-	GroupID   *string   `json:"group_id" gorm:"type:uuid;index"`
+	Phone     string    `json:"phone" gorm:"type:varchar(50);not null;uniqueIndex:idx_phone_tenant"`
+	Groups    []Group   `json:"groups" gorm:"many2many:contact_groups;"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -30,6 +30,9 @@ type ContactRepository interface {
 	Delete(id string) error
 	FindByPhone(tenantID, phone string) (*Contact, error)
 	FindByGroupID(groupID string) ([]Contact, error)
+	AddGroup(contactID, groupID string) error
+	RemoveGroup(contactID, groupID string) error
+	SetGroups(contactID string, groupIDs []string) error
 }
 
 type GroupRepository interface {
