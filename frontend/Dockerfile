@@ -1,12 +1,18 @@
 FROM node:18-alpine AS builder
 
+# Install pnpm
+RUN npm install -g pnpm
+
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci
+# Copy lockfile and package.json
+COPY pnpm-lock.yaml package.json ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 # Production stage — lightweight Nginx to serve static files
 FROM nginx:alpine
