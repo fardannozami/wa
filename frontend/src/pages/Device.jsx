@@ -80,22 +80,10 @@ export default function Device() {
   }, [])
 
   useEffect(() => {
-    let interval
-
     if (status === 'qr_generated' || status === 'connecting') {
       connectWebSocket()
-      interval = setInterval(() => {
-        loadStatus()
-      }, 3000)
     } else if (status === 'connected' || status === 'active') {
       disconnectWebSocket()
-      interval = setInterval(() => {
-        loadStatus()
-      }, 30000)
-    }
-
-    return () => {
-      if (interval) clearInterval(interval)
     }
   }, [status, connectWebSocket, disconnectWebSocket])
 
