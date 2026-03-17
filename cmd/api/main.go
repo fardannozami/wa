@@ -52,7 +52,7 @@ func main() {
 	deviceHandler := handlers.NewDeviceHandler(deviceRepo, waService, log)
 	wsHandler := handlers.NewWSHandler(waService, cfg.JWTSecret, log)
 	messageHandler := handlers.NewMessageHandler(waService, log)
-	contactHandler := handlers.NewContactHandler(contactRepo, log)
+	contactHandler := handlers.NewContactHandler(contactRepo, groupRepo, log)
 	groupHandler := handlers.NewGroupHandler(groupRepo, log)
 	campaignHandler := handlers.NewCampaignHandler(campaignRepo, contactRepo, messageRepo, log)
 	campaignHandler.SetWAService(waService)

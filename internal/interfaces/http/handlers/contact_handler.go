@@ -15,12 +15,14 @@ import (
 
 type ContactHandler struct {
 	contactRepo *repository.ContactRepository
+	groupRepo   *repository.GroupRepository
 	log         *logger.Logger
 }
 
-func NewContactHandler(contactRepo *repository.ContactRepository, log *logger.Logger) *ContactHandler {
+func NewContactHandler(contactRepo *repository.ContactRepository, groupRepo *repository.GroupRepository, log *logger.Logger) *ContactHandler {
 	return &ContactHandler{
 		contactRepo: contactRepo,
+		groupRepo:   groupRepo,
 		log:         log,
 	}
 }
@@ -193,7 +195,16 @@ func (h *ContactHandler) ImportCSV(c *gin.Context) {
 		return
 	}
 
-	var contacts []domain.Contact
+	groupMap := make(map[string]string)
+	groups, _ := h.groupRepo.FindByTenantID(tenantID)
+	for _, g := range groups {
+		groupMap[strings.ToLower(g.Name)] = g.ID
+	}
+	h.log.Info("Group map", "groupMap", groupMap)
+
+	updatedCount := 0
+	createdCount := 0
+
 	for i, record := range records {
 		if i == 0 {
 			continue
@@ -203,26 +214,48 @@ func (h *ContactHandler) ImportCSV(c *gin.Context) {
 		}
 
 		phone := h.sanitizePhone(record[1])
+		name := strings.TrimSpace(record[0])
 
-		contacts = append(contacts, domain.Contact{
-			ID:       uuid.New().String(),
-			TenantID: tenantID,
-			Name:     strings.TrimSpace(record[0]),
-			Phone:    phone,
-		})
-	}
+		existingContact, err := h.contactRepo.FindByPhone(tenantID, phone)
+		if err == nil && existingContact != nil {
+			existingContact.Name = name
+			if len(record) >= 3 && strings.TrimSpace(record[2]) != "" {
+				groupName := strings.TrimSpace(record[2])
+				h.log.Info("Processing group", "groupName", groupName, "groupMap", groupMap)
+				if groupID, ok := groupMap[strings.ToLower(groupName)]; ok {
+					h.log.Info("Found group", "groupID", groupID)
+					existingContact.GroupID = &groupID
+				} else {
+					h.log.Info("Group not found, setting to nil")
+					existingContact.GroupID = nil
+				}
+			}
+			h.contactRepo.Update(existingContact)
+			updatedCount++
+		} else {
+			contact := domain.Contact{
+				ID:       uuid.New().String(),
+				TenantID: tenantID,
+				Name:     name,
+				Phone:    phone,
+			}
 
-	if len(contacts) > 0 {
-		if err := h.contactRepo.CreateBatch(contacts); err != nil {
-			h.log.Error("Failed to import contacts", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to import contacts"})
-			return
+			if len(record) >= 3 && strings.TrimSpace(record[2]) != "" {
+				groupName := strings.TrimSpace(record[2])
+				if groupID, ok := groupMap[strings.ToLower(groupName)]; ok {
+					contact.GroupID = &groupID
+				}
+			}
+
+			h.contactRepo.Create(&contact)
+			createdCount++
 		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":  "Contacts imported successfully",
-		"imported": len(contacts),
+		"message": "Contacts imported",
+		"created": createdCount,
+		"updated": updatedCount,
 	})
 }
 

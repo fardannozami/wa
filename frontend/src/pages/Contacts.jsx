@@ -212,13 +212,53 @@ export default function Contacts() {
     formData.append('file', file)
     
     try {
-      await contactApi.import(formData)
+      const { data } = await contactApi.import(formData)
       loadContacts()
-      toast.success('Contacts imported successfully!')
+      toast.success(`Imported: ${data.created} new, ${data.updated} updated`)
     } catch (e) {
       console.error(e)
       toast.error('Failed to import contacts')
     }
+  }
+
+  const handleExport = async () => {
+    try {
+      const { data } = await contactApi.list(1, 10000)
+      const contacts = data.data || []
+      
+      const csvContent = [
+        ['Name', 'Phone', 'Group'].join(','),
+        ...contacts.map(c => [
+          `"${c.name || ''}"`,
+          `"${c.phone || ''}"`,
+          `"${c.group_id ? groups.find(g => g.id === c.group_id)?.name || '' : ''}"`
+        ].join(','))
+      ].join('\n')
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `contacts_${new Date().toISOString().split('T')[0]}.csv`
+      link.click()
+      toast.success('Contacts exported!')
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to export contacts')
+    }
+  }
+
+  const downloadTemplate = () => {
+    const template = [
+      'Name,Phone,Group',
+      'John Doe,628123456789,Customer',
+      'Jane Smith,628987654321,VIP'
+    ].join('\n')
+
+    const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = 'contacts_template.csv'
+    link.click()
   }
 
   return (
@@ -226,6 +266,12 @@ export default function Contacts() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 className="page-title">Contacts</h1>
         <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={downloadTemplate} className="btn btn-secondary" style={{ padding: '8px 16px' }}>
+            Template CSV
+          </button>
+          <button onClick={handleExport} className="btn btn-secondary" style={{ padding: '8px 16px' }}>
+            Export CSV
+          </button>
           <label className="btn btn-secondary">
             Import CSV
             <input type="file" accept=".csv" onChange={handleImport} style={{ display: 'none' }} />
