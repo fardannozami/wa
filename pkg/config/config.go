@@ -11,6 +11,7 @@ type Config struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
+	FrontendURL        string
 
 	RedisURL string
 
@@ -30,6 +31,7 @@ func Load() *Config {
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/v1/auth/google/callback"),
+		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
 
 		RedisURL: getEnv("REDIS_URL", "redis://localhost:6379"),
 

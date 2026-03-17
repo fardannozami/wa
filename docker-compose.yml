@@ -45,7 +45,8 @@ services:
       - SESSION_DIR=/app/sessions
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - GOOGLE_REDIRECT_URL=https://wa.ajitama.dev/api/v1/auth/google/callback
+      - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL:-http://localhost:8080/api/v1/auth/google/callback}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - LOG_LEVEL=info
     depends_on:
       postgres:
