@@ -194,6 +194,7 @@ export default function Campaigns() {
       }
     } else {
       setSelectedContacts([])
+      await loadContacts('')
     }
   }
 
