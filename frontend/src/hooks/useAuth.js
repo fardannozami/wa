@@ -27,16 +27,6 @@ export const useAuthStore = create((set, get) => ({
   
   setAuth: (isAuthenticated, user = null) => set({ isAuthenticated, user }),
   
-  login: async () => {
-    try {
-      const { data } = await api.post('/auth/login')
-      localStorage.setItem('token', data.token)
-      set({ isAuthenticated: true, user: data.user })
-      return data
-    } catch (e) {
-      throw e
-    }
-  },
   
   logout: async () => {
     try {

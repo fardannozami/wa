@@ -8,18 +8,6 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleDemoLogin = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      await login()
-      navigate('/dashboard')
-    } catch (e) {
-      setError(e.response?.data?.error || 'Login failed')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleGoogleLogin = async () => {
     setLoading(true)
@@ -37,8 +25,8 @@ export default function Login() {
       if (data.url) {
         console.log('Redirecting to:', data.url)
         window.location.href = data.url
-      } else if (data.demo) {
-        await handleDemoLogin()
+      } else if (data.error) {
+        setError(data.error)
       }
     } catch (e) {
       console.error('Error:', e)
@@ -58,17 +46,8 @@ export default function Login() {
         {error && <div style={{ color: 'red', marginBottom: '10px' }}>{error}</div>}
         
         <button 
-          onClick={handleDemoLogin} 
-          className="btn btn-primary" 
-          style={{ width: '100%', padding: '14px', marginBottom: '10px' }}
-          disabled={loading}
-        >
-          {loading ? 'Loading...' : 'Demo Login'}
-        </button>
-        
-        <button 
           onClick={handleGoogleLogin} 
-          className="btn btn-secondary" 
+          className="btn btn-primary" 
           style={{ width: '100%', padding: '14px' }}
           disabled={loading}
         >

@@ -46,10 +46,8 @@ func NewAuthHandler(userRepo *repository.UserRepository, tenantRepo *repository.
 
 func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	if h.cfg.GoogleClientID == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "Google OAuth not configured",
-			"demo":    true,
-			"url":     "/api/v1/auth/demo",
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Google OAuth is not configured on the server",
 		})
 		return
 	}
@@ -195,47 +193,6 @@ func (h *AuthHandler) generateToken(userID, tenantID, email string) (string, err
 	return token.SignedString([]byte(h.cfg.JWTSecret))
 }
 
-func (h *AuthHandler) DemoLogin(c *gin.Context) {
-	user := &domain.User{
-		ID:       uuid.New().String(),
-		GoogleID: "demo-" + uuid.New().String()[:8],
-		Email:    "demo@example.com",
-		Name:     "Demo User",
-	}
-
-	if err := h.userRepo.Create(user); err != nil {
-		h.log.Error("Failed to create user", "error", err)
-	}
-
-	tenant := &domain.Tenant{
-		ID:      uuid.New().String(),
-		OwnerID: user.ID,
-		Plan:    domain.TenantPlanFree,
-		Status:  domain.TenantStatusActive,
-	}
-	if err := h.tenantRepo.Create(tenant); err != nil {
-		h.log.Error("Failed to create tenant", "error", err)
-	}
-
-	jwtToken, err := h.generateToken(user.ID, tenant.ID, user.Email)
-	if err != nil {
-		h.log.Error("Failed to sign token", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		return
-	}
-
-	c.SetCookie("token", jwtToken, 86400, "/", "", false, true)
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Login successful",
-		"token":   jwtToken,
-		"user": gin.H{
-			"id":        user.ID,
-			"email":     user.Email,
-			"name":      user.Name,
-			"tenant_id": tenant.ID,
-		},
-	})
-}
 
 func (h *AuthHandler) Logout(c *gin.Context) {
 	c.SetCookie("token", "", -1, "/", "", false, true)

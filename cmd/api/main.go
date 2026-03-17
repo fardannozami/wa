@@ -64,8 +64,6 @@ func main() {
 	{
 		api.GET("/auth/google", authHandler.GoogleLogin)
 		api.GET("/auth/google/callback", authHandler.GoogleCallback)
-		api.POST("/auth/demo", authHandler.DemoLogin)
-		api.POST("/auth/login", authHandler.DemoLogin)
 		api.POST("/auth/logout", authHandler.Logout)
 
 		api.GET("/health", func(c *gin.Context) {
