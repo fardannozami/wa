@@ -45,6 +45,7 @@ func main() {
 
 	authHandler := handlers.NewAuthHandler(userRepo, tenantRepo, cfg, log)
 	deviceHandler := handlers.NewDeviceHandler(deviceRepo, waService, log)
+	wsHandler := handlers.NewWSHandler(waService, cfg.JWTSecret, log)
 	contactHandler := handlers.NewContactHandler(contactRepo, log)
 	campaignHandler := handlers.NewCampaignHandler(campaignRepo, contactRepo, messageRepo, log)
 
@@ -85,6 +86,8 @@ func main() {
 		protected.GET("/campaigns/:id", campaignHandler.Get)
 		protected.DELETE("/campaigns/:id", campaignHandler.Delete)
 	}
+
+	router.GET("/api/v1/device/ws", wsHandler.HandleQR)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from './hooks/useAuth'
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -7,6 +7,45 @@ import Dashboard from './pages/Dashboard'
 import Device from './pages/Device'
 import Contacts from './pages/Contacts'
 import Campaigns from './pages/Campaigns'
+
+function OAuthCallback() {
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const { setAuth } = useAuthStore()
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const token = searchParams.get('token')
+    if (token) {
+      localStorage.setItem('token', token)
+      setAuth(true)
+      navigate('/dashboard')
+    } else {
+      setError('No token received')
+    }
+  }, [searchParams, navigate, setAuth])
+
+  if (error) {
+    return (
+      <div className="login-page">
+        <div className="card login-card">
+          <h2 style={{ color: 'red' }}>{error}</h2>
+          <button onClick={() => navigate('/login')} className="btn btn-primary" style={{ marginTop: '20px' }}>
+            Back to Login
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="login-page">
+      <div className="card login-card">
+        <h2>Logging you in...</h2>
+      </div>
+    </div>
+  )
+}
 
 function PrivateRoute({ children }) {
   const { isAuthenticated, loading } = useAuthStore()
@@ -41,6 +80,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/oauth/callback" element={<OAuthCallback />} />
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />

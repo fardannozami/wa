@@ -66,10 +66,9 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 
 func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	state := c.Query("state")
-	savedState, _ := c.Get("oauth_state")
 
-	if state == "" || state != savedState {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state parameter"})
+	if state == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No state parameter"})
 		return
 	}
 
@@ -114,8 +113,8 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("token", jwtToken, 86400, "/", "", false, true)
-	c.Redirect(http.StatusFound, "/dashboard?token="+jwtToken)
+	redirectURL := "http://localhost:3000/oauth/callback?token=" + jwtToken
+	c.Redirect(http.StatusFound, redirectURL)
 }
 
 type GoogleUserInfo struct {

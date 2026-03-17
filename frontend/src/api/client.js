@@ -27,7 +27,7 @@ api.interceptors.response.use(
 )
 
 export const authApi = {
-  googleLogin: () => api.get('/auth/google', { responseType: 'text' }),
+  googleLogin: () => api.get('/auth/google'),
   login: () => api.post('/auth/login'),
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),

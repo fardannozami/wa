@@ -2,14 +2,19 @@ package whatsapp
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/wa-saas/internal/domain"
+
 	"go.mau.fi/whatsmeow"
 	waE2E "go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -17,6 +22,8 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/skip2/go-qrcode"
 )
 
 type QRCode struct {
@@ -30,6 +37,7 @@ type WAService interface {
 	Connect(tenantID string) error
 	Disconnect(tenantID string) error
 	SendMessage(tenantID, phone, message string) error
+	HandleQRWebSocket(tenantID string, w http.ResponseWriter, r *http.Request)
 	Shutdown()
 }
 
@@ -39,6 +47,9 @@ type WhatsAppService struct {
 
 	mu      sync.RWMutex
 	clients map[string]*WhatsMeowClient
+
+	wsMu    sync.RWMutex
+	wsConns map[string]*websocket.Conn
 }
 
 type WhatsMeowClient struct {
@@ -54,10 +65,12 @@ func NewWhatsAppService(deviceRepo domain.DeviceRepository, sessionDir string) *
 		deviceRepo: deviceRepo,
 		sessionDir: sessionDir,
 		clients:    make(map[string]*WhatsMeowClient),
+		wsConns:    make(map[string]*websocket.Conn),
 	}
 }
 
 func (s *WhatsAppService) GenerateQR(tenantID string) (QRCode, error) {
+	fmt.Printf("[WhatsMeow] GenerateQR called for tenant: %s\n", tenantID)
 	device, err := s.deviceRepo.FindByTenantID(tenantID)
 	if err != nil {
 		device = &domain.Device{
@@ -101,14 +114,14 @@ func (s *WhatsAppService) GenerateQR(tenantID string) (QRCode, error) {
 		s.handleEvent(tenantID, evt)
 	})
 
-	err = client.Connect()
-	if err != nil {
-		return QRCode{}, fmt.Errorf("failed to connect: %w", err)
-	}
-
 	qrChan, err := client.GetQRChannel(context.Background())
 	if err != nil {
 		return QRCode{}, fmt.Errorf("failed to get QR channel: %w", err)
+	}
+
+	err = client.Connect()
+	if err != nil {
+		return QRCode{}, fmt.Errorf("failed to connect: %w", err)
 	}
 
 	s.clients[tenantID] = &WhatsMeowClient{
@@ -140,6 +153,19 @@ func (s *WhatsAppService) handleQRChannel(tenantID string, device *domain.Device
 	case "code":
 		fmt.Printf("[WhatsMeow] QR Code received for tenant %s\n", tenantID)
 
+		qrImage := ""
+		png, err := qrcode.Encode(evt.Code, qrcode.Medium, 256)
+		if err == nil {
+			qrImage = base64.StdEncoding.EncodeToString(png)
+		}
+
+		qrPayload := map[string]interface{}{
+			"type":  "qr",
+			"code":  evt.Code,
+			"image": qrImage,
+		}
+		s.pushToWebSocket(tenantID, qrPayload)
+
 	case "success":
 		device.Status = domain.DeviceStatusConnected
 		if client.Store.ID != nil {
@@ -154,6 +180,11 @@ func (s *WhatsAppService) handleQRChannel(tenantID string, device *domain.Device
 		}
 		s.mu.Unlock()
 
+		s.pushToWebSocket(tenantID, map[string]interface{}{
+			"type":   "connected",
+			"status": domain.DeviceStatusConnected,
+		})
+
 		fmt.Printf("[WhatsMeow] Device connected for tenant %s\n", tenantID)
 
 	case "failed":
@@ -163,6 +194,11 @@ func (s *WhatsAppService) handleQRChannel(tenantID string, device *domain.Device
 		s.mu.Lock()
 		delete(s.clients, tenantID)
 		s.mu.Unlock()
+
+		s.pushToWebSocket(tenantID, map[string]interface{}{
+			"type":   "failed",
+			"status": domain.DeviceStatusDisconnected,
+		})
 
 		fmt.Printf("[WhatsMeow] QR scan failed for tenant %s\n", tenantID)
 	}
@@ -229,6 +265,10 @@ func (s *WhatsAppService) Connect(tenantID string) error {
 	client.AddEventHandler(func(evt interface{}) {
 		s.handleEvent(tenantID, evt)
 	})
+
+	if client.Store.ID == nil {
+		return fmt.Errorf("no session found, please generate QR code first")
+	}
 
 	err = client.Connect()
 	if err != nil {
@@ -320,4 +360,58 @@ func (s *WhatsAppService) Shutdown() {
 
 func (s *WhatsAppService) generateID() string {
 	return fmt.Sprintf("dev_%d", time.Now().UnixNano())
+}
+
+func (s *WhatsAppService) pushToWebSocket(tenantID string, data map[string]interface{}) {
+	s.wsMu.RLock()
+	conn, ok := s.wsConns[tenantID]
+	s.wsMu.RUnlock()
+
+	fmt.Printf("[WS] pushToWebSocket: tenantID=%s, hasConn=%v, conn=%v\n", tenantID, ok, conn)
+
+	if !ok || conn == nil {
+		return
+	}
+
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		fmt.Printf("[WS] Failed to marshal JSON: %v\n", err)
+		return
+	}
+
+	err = conn.Write(context.Background(), websocket.MessageText, jsonData)
+	if err != nil {
+		fmt.Printf("[WS] Failed to write message: %v\n", err)
+		s.wsMu.Lock()
+		delete(s.wsConns, tenantID)
+		s.wsMu.Unlock()
+	}
+}
+
+func (s *WhatsAppService) HandleQRWebSocket(tenantID string, w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[WS] HandleQRWebSocket called with tenantID: %s\n", tenantID)
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		CompressionMode:    websocket.CompressionContextTakeover,
+		InsecureSkipVerify: true,
+	})
+	if err != nil {
+		fmt.Printf("[WS] Failed to accept WebSocket: %v\n", err)
+		return
+	}
+
+	s.wsMu.Lock()
+	s.wsConns[tenantID] = conn
+	s.wsMu.Unlock()
+
+	fmt.Printf("[WS] WebSocket connected for tenant %s\n", tenantID)
+
+	ctx := r.Context()
+	<-ctx.Done()
+
+	s.wsMu.Lock()
+	delete(s.wsConns, tenantID)
+	s.wsMu.Unlock()
+
+	conn.Close(websocket.StatusNormalClosure, "")
+	fmt.Printf("[WS] WebSocket disconnected for tenant %s\n", tenantID)
 }

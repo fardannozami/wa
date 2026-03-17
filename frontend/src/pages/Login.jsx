@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { authApi } from '../api/client'
 import { useAuthStore } from '../hooks/useAuth'
 
 export default function Login() {
@@ -25,19 +24,24 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     setLoading(true)
     setError('')
+    
     try {
-      const { data } = await authApi.googleLogin()
+      const response = await fetch('/api/v1/auth/google', {
+        method: 'GET',
+        credentials: 'include'
+      })
       
-      if (data.demo) {
-        handleDemoLogin()
-        return
-      }
+      const data = await response.json()
+      console.log('Response:', data)
       
       if (data.url) {
+        console.log('Redirecting to:', data.url)
         window.location.href = data.url
+      } else if (data.demo) {
+        await handleDemoLogin()
       }
     } catch (e) {
-      console.error(e)
+      console.error('Error:', e)
       setError('Google login failed')
     } finally {
       setLoading(false)
