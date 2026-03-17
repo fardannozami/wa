@@ -82,6 +82,8 @@ func main() {
 		protected.POST("/device/connect", deviceHandler.Connect)
 		protected.POST("/device/disconnect", deviceHandler.Disconnect)
 		protected.GET("/device/status", deviceHandler.GetStatus)
+		protected.GET("/device/groups", deviceHandler.GetGroups)
+		protected.POST("/device/import-group", deviceHandler.ImportGroupContacts)
 
 		protected.POST("/messages", messageHandler.Send)
 

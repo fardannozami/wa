@@ -19,6 +19,10 @@ export default function Contacts() {
   const [groups, setGroups] = useState([])
   const [showGroupModal, setShowGroupModal] = useState(false)
   const [groupFormData, setGroupFormData] = useState({ name: '' })
+  const [showWhatsappModal, setShowWhatsappModal] = useState(false)
+  const [whatsappGroups, setWhatsappGroups] = useState([])
+  const [loadingWhatsappGroups, setLoadingWhatsappGroups] = useState(false)
+  const [importingFromGroup, setImportingFromGroup] = useState(null)
 
   useEffect(() => {
     loadContacts()
@@ -133,6 +137,55 @@ export default function Contacts() {
     } catch (e) {
       console.error(e)
       toast.error('Failed to create group')
+    }
+  }
+
+  const loadWhatsappGroups = async () => {
+    setLoadingWhatsappGroups(true)
+    try {
+      const { data } = await deviceApi.getGroups()
+      setWhatsappGroups(data.data || [])
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to load WhatsApp groups - device may not be connected')
+    } finally {
+      setLoadingWhatsappGroups(false)
+    }
+  }
+
+  const openWhatsappModal = async () => {
+    setShowWhatsappModal(true)
+    setWhatsappGroups([])
+    await loadWhatsappGroups()
+  }
+
+  const handleImportFromWhatsappGroup = async (group) => {
+    setImportingFromGroup(group.jid)
+    try {
+      const { data } = await deviceApi.importGroup(group.jid)
+      const contacts = data.data || []
+      
+      for (const c of contacts) {
+        try {
+          await contactApi.create({
+            name: c.name || 'Unknown',
+            phone: c.phone,
+            prefix: '',
+            group_ids: []
+          })
+        } catch (e) {
+          // Skip duplicates or errors
+        }
+      }
+      
+      toast.success(`Imported ${contacts.length} contacts from ${group.name}`)
+      setShowWhatsappModal(false)
+      loadContacts()
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to import contacts')
+    } finally {
+      setImportingFromGroup(null)
     }
   }
 
@@ -275,6 +328,9 @@ export default function Contacts() {
           <button onClick={handleExport} className="btn btn-secondary" style={{ padding: '8px 16px' }}>
             Export CSV
           </button>
+          <button onClick={openWhatsappModal} className="btn btn-secondary" style={{ padding: '8px 16px' }}>
+            Import from WhatsApp
+          </button>
           <label className="btn btn-secondary">
             Import CSV
             <input type="file" accept=".csv" onChange={handleImport} style={{ display: 'none' }} />
@@ -315,9 +371,9 @@ export default function Contacts() {
             <table className="table">
               <thead>
                 <tr>
+                  <th>Prefix</th>
                   <th>Name</th>
                   <th>Phone</th>
-                  <th>Prefix</th>
                   <th>Group</th>
                   <th>Actions</th>
                 </tr>
@@ -325,9 +381,9 @@ export default function Contacts() {
               <tbody>
                 {contacts.map((contact) => (
                   <tr key={contact.id}>
-                    <td>{contact.prefix ? `${contact.prefix} ${contact.name}` : contact.name}</td>
-                    <td>{contact.phone}</td>
                     <td>{contact.prefix || '-'}</td>
+                    <td>{contact.name}</td>
+                    <td>{contact.phone}</td>
                     <td>{contact.groups && contact.groups.length > 0 ? contact.groups.map(g => g.name).join(', ') : '-'}</td>
                     <td>
                       <button onClick={() => openMessageModal(contact)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px', marginRight: '8px' }} disabled={deviceStatus !== 'connected' && deviceStatus !== 'active'}>
@@ -369,6 +425,25 @@ export default function Contacts() {
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
+                                <div className="form-group">
+                  <label className="form-label">Prefix</label>
+                  <select
+                    className="form-input"
+                    value={formData.prefix}
+                    onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
+                  >
+                    <option value="">-</option>
+                    <option value="Pak">Pak</option>
+                    <option value="Bu">Bu</option>
+                    <option value="Bapak">Bapak</option>
+                    <option value="Ibu">Ibu</option>
+                    <option value="Boss">Boss</option>
+                    <option value="Saudara">Saudara</option>
+                    <option value="Saudari">Saudari</option>
+                    <option value="Tn">Tn</option>
+                    <option value="Ny">Ny</option>
+                  </select>
+                </div>
                 <div className="form-group">
                   <label className="form-label">Name</label>
                   <input
@@ -389,25 +464,6 @@ export default function Contacts() {
                     placeholder="+62812345678"
                     required
                   />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Prefix</label>
-                  <select
-                    className="form-input"
-                    value={formData.prefix}
-                    onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
-                  >
-                    <option value="">-</option>
-                    <option value="Pak">Pak</option>
-                    <option value="Bu">Bu</option>
-                    <option value="Bapak">Bapak</option>
-                    <option value="Ibu">Ibu</option>
-                    <option value="Boss">Boss</option>
-                    <option value="Saudara">Saudara</option>
-                    <option value="Saudari">Saudari</option>
-                    <option value="Tn">Tn</option>
-                    <option value="Ny">Ny</option>
-                  </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Groups (select multiple)</label>
@@ -503,6 +559,40 @@ export default function Contacts() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showWhatsappModal && (
+        <div className="modal-overlay" onClick={() => setShowWhatsappModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Import from WhatsApp Groups</h3>
+              <button onClick={() => setShowWhatsappModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+            <div className="modal-body">
+              {loadingWhatsappGroups && <div style={{ textAlign: 'center', padding: '20px' }}>Loading groups...</div>}
+              {!loadingWhatsappGroups && whatsappGroups.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                  No WhatsApp groups found. Make sure your device is connected.
+                </div>
+              )}
+              {!loadingWhatsappGroups && whatsappGroups.length > 0 && (
+                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  {whatsappGroups.map((group) => (
+                    <div key={group.jid} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #eee' }}>
+                      <div>
+                        <div style={{ fontWeight: '500' }}>{group.name || 'Unnamed Group'}</div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>{group.jid}</div>
+                      </div>
+                      <button onClick={() => handleImportFromWhatsappGroup(group)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }} disabled={importingFromGroup === group.jid}>
+                        {importingFromGroup === group.jid ? 'Importing...' : 'Import'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

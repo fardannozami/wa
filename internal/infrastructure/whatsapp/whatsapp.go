@@ -40,6 +40,8 @@ type WAService interface {
 	SendTypingIndicator(tenantID, phone string)
 	HandleQRWebSocket(tenantID string, w http.ResponseWriter, r *http.Request)
 	PushCampaignUpdate(tenantID string, data map[string]interface{})
+	GetJoinedGroups(tenantID string) ([]map[string]interface{}, error)
+	ImportGroupContacts(tenantID, groupJID string) ([]map[string]interface{}, error)
 	Shutdown()
 }
 
@@ -454,4 +456,64 @@ func (s *WhatsAppService) HandleQRWebSocket(tenantID string, w http.ResponseWrit
 
 	conn.Close(websocket.StatusNormalClosure, "")
 	fmt.Printf("[WS] WebSocket disconnected for tenant %s\n", tenantID)
+}
+
+func (s *WhatsAppService) GetJoinedGroups(tenantID string) ([]map[string]interface{}, error) {
+	s.mu.RLock()
+	client, ok := s.clients[tenantID]
+	s.mu.RUnlock()
+
+	if !ok || client == nil || client.Client == nil {
+		return nil, fmt.Errorf("device not connected")
+	}
+
+	groups, err := client.Client.GetJoinedGroups(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	var result []map[string]interface{}
+	for _, group := range groups {
+		result = append(result, map[string]interface{}{
+			"jid":   group.JID.String(),
+			"name":  group.Name,
+			"phone": group.JID.User,
+		})
+	}
+
+	return result, nil
+}
+
+func (s *WhatsAppService) ImportGroupContacts(tenantID, groupJID string) ([]map[string]interface{}, error) {
+	s.mu.RLock()
+	client, ok := s.clients[tenantID]
+	s.mu.RUnlock()
+
+	if !ok || client == nil || client.Client == nil {
+		return nil, fmt.Errorf("device not connected")
+	}
+
+	group := types.NewJID(groupJID, types.GroupServer)
+
+	resp, err := client.Client.GetGroupInfo(context.Background(), group)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []map[string]interface{}
+	for _, participant := range resp.Participants {
+		phone := participant.JID.User
+		if phone == "" {
+			continue
+		}
+
+		name := ""
+
+		result = append(result, map[string]interface{}{
+			"phone": phone,
+			"name":  name,
+		})
+	}
+
+	return result, nil
 }

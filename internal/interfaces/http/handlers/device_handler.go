@@ -93,3 +93,38 @@ func (h *DeviceHandler) GetStatus(c *gin.Context) {
 		"phone":  phoneNumber,
 	})
 }
+
+func (h *DeviceHandler) GetGroups(c *gin.Context) {
+	tenantID := c.GetString("tenant_id")
+
+	groups, err := h.waService.GetJoinedGroups(tenantID)
+	if err != nil {
+		h.log.Error("Failed to get groups", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": groups})
+}
+
+func (h *DeviceHandler) ImportGroupContacts(c *gin.Context) {
+	tenantID := c.GetString("tenant_id")
+
+	var input struct {
+		GroupJID string `json:"group_jid" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	contacts, err := h.waService.ImportGroupContacts(tenantID, input.GroupJID)
+	if err != nil {
+		h.log.Error("Failed to import group contacts", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": contacts})
+}

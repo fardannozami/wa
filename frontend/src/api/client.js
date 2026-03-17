@@ -38,6 +38,8 @@ export const deviceApi = {
   connect: () => api.post('/device/connect'),
   disconnect: () => api.post('/device/disconnect'),
   getStatus: () => api.get('/device/status'),
+  getGroups: () => api.get('/device/groups'),
+  importGroup: (groupJid) => api.post('/device/import-group', { group_jid: groupJid }),
 }
 
 export const messageApi = {
