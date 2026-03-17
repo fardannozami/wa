@@ -53,8 +53,8 @@ function PrivateRoute({ children }) {
   
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        Loading...
+      <div className="loading-screen">
+        <div className="spinner" />
       </div>
     )
   }
@@ -71,8 +71,8 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        Loading...
+      <div className="loading-screen">
+        <div className="spinner" />
       </div>
     )
   }
