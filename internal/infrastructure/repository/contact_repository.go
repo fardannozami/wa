@@ -40,6 +40,31 @@ func (r *ContactRepository) FindByTenantID(tenantID string, page, limit int) ([]
 	return contacts, total, nil
 }
 
+func (r *ContactRepository) FindByTenantIDAndGroupID(tenantID string, groupID string, page, limit int) ([]domain.Contact, int64, error) {
+	var contacts []domain.Contact
+	var total int64
+
+	offset := (page - 1) * limit
+
+	query := r.db.Model(&domain.Contact{}).Where("tenant_id = ?", tenantID)
+
+	if groupID != "" {
+		query = query.Where("group_id = ?", groupID)
+	}
+
+	err := query.Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = query.Offset(offset).Limit(limit).Find(&contacts).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return contacts, total, nil
+}
+
 func (r *ContactRepository) FindByID(id string) (*domain.Contact, error) {
 	var contact domain.Contact
 	err := r.db.First(&contact, "id = ?", id).Error
@@ -64,4 +89,10 @@ func (r *ContactRepository) FindByPhone(tenantID, phone string) (*domain.Contact
 		return nil, err
 	}
 	return &contact, nil
+}
+
+func (r *ContactRepository) FindByGroupID(groupID string) ([]domain.Contact, error) {
+	var contacts []domain.Contact
+	err := r.db.Where("group_id = ?", groupID).Find(&contacts).Error
+	return contacts, err
 }

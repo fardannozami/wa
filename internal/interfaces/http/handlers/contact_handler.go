@@ -30,6 +30,7 @@ func (h *ContactHandler) List(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	groupID := c.Query("group_id")
 
 	if page < 1 {
 		page = 1
@@ -38,7 +39,12 @@ func (h *ContactHandler) List(c *gin.Context) {
 		limit = 20
 	}
 
-	contacts, total, err := h.contactRepo.FindByTenantID(tenantID, page, limit)
+	var contacts []domain.Contact
+	var total int64
+	var err error
+
+	contacts, total, err = h.contactRepo.FindByTenantIDAndGroupID(tenantID, groupID, page, limit)
+
 	if err != nil {
 		h.log.Error("Failed to list contacts", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -57,9 +63,9 @@ func (h *ContactHandler) Create(c *gin.Context) {
 	tenantID := c.GetString("tenant_id")
 
 	var input struct {
-		Name  string `json:"name" binding:"required"`
-		Phone string `json:"phone" binding:"required"`
-		Tags  string `json:"tags"`
+		Name    string `json:"name" binding:"required"`
+		Phone   string `json:"phone" binding:"required"`
+		GroupID string `json:"group_id"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -74,7 +80,9 @@ func (h *ContactHandler) Create(c *gin.Context) {
 		TenantID: tenantID,
 		Name:     input.Name,
 		Phone:    h.sanitizePhone(input.Phone),
-		Tags:     input.Tags,
+	}
+	if input.GroupID != "" {
+		contact.GroupID = &input.GroupID
 	}
 
 	h.log.Info("Contact to create", "contact", contact)
@@ -95,9 +103,9 @@ func (h *ContactHandler) Update(c *gin.Context) {
 	contactID := c.Param("id")
 
 	var input struct {
-		Name  string `json:"name"`
-		Phone string `json:"phone"`
-		Tags  string `json:"tags"`
+		Name    string `json:"name"`
+		Phone   string `json:"phone"`
+		GroupID string `json:"group_id"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -122,8 +130,10 @@ func (h *ContactHandler) Update(c *gin.Context) {
 	if input.Phone != "" {
 		contact.Phone = h.sanitizePhone(input.Phone)
 	}
-	if input.Tags != "" {
-		contact.Tags = input.Tags
+	if input.GroupID != "" {
+		contact.GroupID = &input.GroupID
+	} else {
+		contact.GroupID = nil
 	}
 
 	if err := h.contactRepo.Update(contact); err != nil {

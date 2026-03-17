@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { contactApi, messageApi, deviceApi } from '../api/client'
+import { contactApi, messageApi, deviceApi, groupApi } from '../api/client'
 
 export default function Contacts() {
   const [contacts, setContacts] = useState([])
@@ -14,12 +14,26 @@ export default function Contacts() {
   const [messageText, setMessageText] = useState('')
   const [sending, setSending] = useState(false)
   const [deviceStatus, setDeviceStatus] = useState('disconnected')
-  const [formData, setFormData] = useState({ name: '', phone: '', tags: '' })
+  const [formData, setFormData] = useState({ name: '', phone: '', group_id: '' })
+  const [selectedGroup, setSelectedGroup] = useState('')
+  const [groups, setGroups] = useState([])
+  const [showGroupModal, setShowGroupModal] = useState(false)
+  const [groupFormData, setGroupFormData] = useState({ name: '' })
 
   useEffect(() => {
     loadContacts()
     loadDeviceStatus()
-  }, [page])
+    loadGroups()
+  }, [page, selectedGroup])
+
+  const loadGroups = async () => {
+    try {
+      const { data } = await groupApi.list()
+      setGroups(data.data || [])
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   const loadDeviceStatus = async () => {
     try {
@@ -59,7 +73,13 @@ export default function Contacts() {
   const loadContacts = async () => {
     setLoading(true)
     try {
-      const { data } = await contactApi.list(page, 20)
+      const params = new URLSearchParams()
+      params.append('page', page)
+      params.append('limit', 20)
+      if (selectedGroup) {
+        params.append('group_id', selectedGroup)
+      }
+      const { data } = await contactApi.list(page, 20, params.toString())
       setContacts(data.data || [])
       setTotal(data.total || 0)
     } catch (e) {
@@ -71,7 +91,6 @@ export default function Contacts() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    console.log('handleSubmit called', { editingContact, formData })
     try {
       if (editingContact) {
         await contactApi.update(editingContact.id, formData)
@@ -82,7 +101,7 @@ export default function Contacts() {
       }
       setShowModal(false)
       setEditingContact(null)
-      setFormData({ name: '', phone: '', tags: '' })
+      setFormData({ name: '', phone: '', group_id: '' })
       loadContacts()
     } catch (e) {
       console.error(e)
@@ -92,14 +111,64 @@ export default function Contacts() {
 
   const openEditModal = (contact) => {
     setEditingContact(contact)
-    setFormData({ name: contact.name, phone: contact.phone, tags: contact.tags || '' })
+    setFormData({ name: contact.name, phone: contact.phone, group_id: contact.group_id || '' })
     setShowModal(true)
   }
 
   const openAddModal = () => {
     setEditingContact(null)
-    setFormData({ name: '', phone: '', tags: '' })
+    setFormData({ name: '', phone: '', group_id: '' })
     setShowModal(true)
+  }
+
+  const handleGroupSubmit = async (e) => {
+    e.preventDefault()
+    try {
+      await groupApi.create(groupFormData)
+      toast.success('Group created')
+      setShowGroupModal(false)
+      setGroupFormData({ name: '' })
+      loadGroups()
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to create group')
+    }
+  }
+
+  const handleDeleteGroup = async (id) => {
+    toast((t) => (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span>Delete this group?</span>
+        <div style={{ display: 'flex', gap: '5px' }}>
+          <button 
+            onClick={() => { toast.dismiss(t.id); deleteGroup(id) }}
+            style={{ background: '#dc2626', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            Delete
+          </button>
+          <button 
+            onClick={() => toast.dismiss(t.id)}
+            style={{ background: '#6b7280', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ), { duration: 5000 })
+  }
+
+  const deleteGroup = async (id) => {
+    try {
+      await groupApi.delete(id)
+      toast.success('Group deleted')
+      loadGroups()
+      if (selectedGroup === id) {
+        setSelectedGroup('')
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to delete group')
+    }
   }
 
   const handleDelete = async (id) => {
@@ -168,6 +237,24 @@ export default function Contacts() {
       </div>
 
       <div className="card">
+        <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ fontWeight: '500' }}>Filter by Group:</div>
+          <select 
+            value={selectedGroup} 
+            onChange={(e) => { setSelectedGroup(e.target.value); setPage(1) }}
+            className="form-input"
+            style={{ width: 'auto', padding: '6px 12px' }}
+          >
+            <option value="">All Contacts</option>
+            {groups.map(group => (
+              <option key={group.id} value={group.id}>{group.name}</option>
+            ))}
+          </select>
+          <button onClick={() => setShowGroupModal(true)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
+            + New Group
+          </button>
+        </div>
+
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>Loading...</div>
         ) : contacts.length === 0 ? (
@@ -181,7 +268,7 @@ export default function Contacts() {
                 <tr>
                   <th>Name</th>
                   <th>Phone</th>
-                  <th>Tags</th>
+                  <th>Group</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -190,7 +277,7 @@ export default function Contacts() {
                   <tr key={contact.id}>
                     <td>{contact.name}</td>
                     <td>{contact.phone}</td>
-                    <td>{contact.tags || '-'}</td>
+                    <td>{contact.group_id ? groups.find(g => g.id === contact.group_id)?.name || '-' : '-'}</td>
                     <td>
                       <button onClick={() => openMessageModal(contact)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px', marginRight: '8px' }} disabled={deviceStatus !== 'connected' && deviceStatus !== 'active'}>
                         Send
@@ -253,19 +340,52 @@ export default function Contacts() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Tags (comma separated)</label>
-                  <input
-                    type="text"
+                  <label className="form-label">Group</label>
+                  <select
                     className="form-input"
-                    value={formData.tags}
-                    onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                    placeholder="customer, vip"
-                  />
+                    value={formData.group_id}
+                    onChange={(e) => setFormData({ ...formData, group_id: e.target.value })}
+                  >
+                    <option value="">No Group</option>
+                    {groups.map(group => (
+                      <option key={group.id} value={group.id}>{group.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="modal-footer">
                 <button type="button" onClick={() => { setShowModal(false); setEditingContact(null) }} className="btn btn-secondary">Cancel</button>
                 <button type="submit" className="btn btn-primary">{editingContact ? 'Update Contact' : 'Add Contact'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showGroupModal && (
+        <div className="modal-overlay" onClick={() => setShowGroupModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Create Group</h3>
+              <button onClick={() => setShowGroupModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+            <form onSubmit={handleGroupSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Group Name</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={groupFormData.name}
+                    onChange={(e) => setGroupFormData({ name: e.target.value })}
+                    placeholder="e.g., Customer, VIP, etc."
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowGroupModal(false)} className="btn btn-secondary">Cancel</button>
+                <button type="submit" className="btn btn-primary">Create Group</button>
               </div>
             </form>
           </div>

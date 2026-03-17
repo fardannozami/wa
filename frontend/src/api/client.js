@@ -45,13 +45,20 @@ export const messageApi = {
 }
 
 export const contactApi = {
-  list: (page = 1, limit = 20) => api.get(`/contacts?page=${page}&limit=${limit}`),
+  list: (page = 1, limit = 20, query = '') => api.get(`/contacts?page=${page}&limit=${limit}${query ? '&' + query : ''}`),
   create: (data) => api.post('/contacts', data),
   update: (id, data) => api.put(`/contacts/${id}`, data),
   delete: (id) => api.delete(`/contacts/${id}`),
   import: (formData) => api.post('/contacts/import', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
+}
+
+export const groupApi = {
+  list: () => api.get('/groups'),
+  create: (data) => api.post('/groups', data),
+  update: (id, data) => api.put(`/groups/${id}`, data),
+  delete: (id) => api.delete(`/groups/${id}`),
 }
 
 export const campaignApi = {

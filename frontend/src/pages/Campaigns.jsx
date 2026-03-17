@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import toast from 'react-hot-toast'
-import { campaignApi, contactApi, deviceApi } from '../api/client'
+import { campaignApi, contactApi, deviceApi, groupApi } from '../api/client'
 
 export default function Campaigns() {
   const [campaigns, setCampaigns] = useState([])
@@ -23,36 +23,33 @@ export default function Campaigns() {
   const [contacts, setContacts] = useState([])
   const [selectedContacts, setSelectedContacts] = useState([])
   const [formData, setFormData] = useState({ name: '', template: '' })
+  const [groups, setGroups] = useState([])
+  const [selectedGroupId, setSelectedGroupId] = useState('')
+  const [selectMode, setSelectMode] = useState('group')
+  const [loadingContacts, setLoadingContacts] = useState(false)
   const wsRef = useRef(null)
 
   const connectWebSocket = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      console.log('[Campaigns WS] Already connected')
       return
     }
 
     try {
-      console.log('[Campaigns WS] Connecting...')
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const token = localStorage.getItem('token')
       const wsUrl = `${protocol}//${window.location.host}/api/v1/device/ws?token=${token}`
-      console.log('[Campaigns WS] URL:', wsUrl)
 
       const ws = new WebSocket(wsUrl)
 
-      ws.onopen = () => {
-        console.log('[Campaigns WS] Connected')
-      }
+      ws.onopen = () => {}
 
       ws.onerror = (error) => {
         console.error('[Campaigns WS] Error:', error)
       }
 
       ws.onmessage = (event) => {
-        console.log('[Campaigns WS] Received:', event.data)
         try {
           const data = JSON.parse(event.data)
-          console.log('[Campaigns WS] Parsed:', data)
           if (data.type === 'campaign_update') {
             setCampaigns(prev => prev.map(c => 
               c.id === data.campaign_id 
@@ -66,7 +63,6 @@ export default function Campaigns() {
       }
 
       ws.onclose = () => {
-        console.log('[Campaigns WS] Disconnected, reconnecting in 3s...')
         wsRef.current = null
         setTimeout(() => {
           if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -151,20 +147,70 @@ export default function Campaigns() {
     }
   }
 
-  const loadContacts = async () => {
+  const loadContacts = async (groupId) => {
+    const targetGroupId = groupId !== undefined ? groupId : selectedGroupId
+    if (loadingContacts) return
+    setLoadingContacts(true)
     try {
-      const { data } = await contactApi.list(1, 100)
+      const params = new URLSearchParams()
+      params.append('page', 1)
+      params.append('limit', 500)
+      if (targetGroupId) {
+        params.append('group_id', targetGroupId)
+      }
+      console.log('Loading contacts with params:', params.toString())
+      const { data } = await contactApi.list(1, 500, params.toString())
       setContacts(data.data || [])
+      
+      if (selectMode === 'group') {
+        setSelectedContacts((data.data || []).map(c => c.id))
+      } else {
+        setSelectedContacts(prev => {
+          const currentIds = new Set((data.data || []).map(c => c.id))
+          return prev.filter(id => !currentIds.has(id))
+        })
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoadingContacts(false)
+    }
+  }
+
+  const loadGroups = async () => {
+    try {
+      const { data } = await groupApi.list()
+      setGroups(data.data || [])
     } catch (e) {
       console.error(e)
     }
   }
 
+  const handleSelectModeChange = async (mode) => {
+    setSelectMode(mode)
+    if (mode === 'group') {
+      if (selectedGroupId) {
+        await loadContacts(selectedGroupId)
+      }
+    } else {
+      setSelectedContacts([])
+    }
+  }
+
+  const handleGroupChange = async (groupId) => {
+    setSelectedGroupId(groupId)
+    if (selectMode === 'group' && groupId) {
+      await loadContacts(groupId)
+    }
+  }
+
   const openModal = async () => {
-    await loadContacts()
+    await loadGroups()
     setEditingCampaign(null)
     setFormData({ name: '', template: '' })
     setSelectedContacts([])
+    setSelectedGroupId('')
+    setSelectMode('group')
     setShowModal(true)
   }
 
@@ -196,10 +242,16 @@ export default function Campaigns() {
 
   const handleEdit = async (campaign) => {
     try {
-      const { data } = await campaignApi.get(campaign.id)
+      await loadGroups()
       setEditingCampaign(campaign)
       setFormData({ name: campaign.name, template: campaign.template || '' })
+      setSelectedContacts([])
+      setSelectedGroupId('')
+      setSelectMode('manual')
+      
+      const { data } = await campaignApi.get(campaign.id)
       setSelectedContacts(data.contact_ids || [])
+      
       setShowModal(true)
     } catch (e) {
       console.error(e)
@@ -263,6 +315,14 @@ export default function Campaigns() {
     } catch (e) {
       console.error(e)
       toast.error('Failed to delete campaign')
+    }
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedContacts.length === contacts.length) {
+      setSelectedContacts([])
+    } else {
+      setSelectedContacts(contacts.map(c => c.id))
     }
   }
 
@@ -424,24 +484,86 @@ export default function Campaigns() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Select Contacts</label>
-                  <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e0e0e0', borderRadius: '6px', padding: '10px' }}>
-                    {contacts.map((contact) => (
-                      <label key={contact.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0' }}>
-                        <input
-                          type="checkbox"
-                          checked={selectedContacts.includes(contact.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedContacts([...selectedContacts, contact.id])
-                            } else {
-                              setSelectedContacts(selectedContacts.filter(id => id !== contact.id))
-                            }
-                          }}
-                        />
-                        {contact.name} ({contact.phone})
-                      </label>
-                    ))}
+                  <div style={{ display: 'flex', gap: '20px', marginBottom: '15px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="selectMode"
+                        checked={selectMode === 'group'}
+                        onChange={() => handleSelectModeChange('group')}
+                      />
+                      By Group
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="selectMode"
+                        checked={selectMode === 'manual'}
+                        onChange={() => handleSelectModeChange('manual')}
+                      />
+                      Manual Select
+                    </label>
                   </div>
+
+                  {selectMode === 'group' && (
+                    <div style={{ marginBottom: '15px' }}>
+                      <label className="form-label">Select Group</label>
+                      <select
+                        className="form-input"
+                        value={selectedGroupId}
+                        onChange={(e) => handleGroupChange(e.target.value)}
+                      >
+                        <option value="">-- Select Group --</option>
+                        {groups.map(group => (
+                          <option key={group.id} value={group.id}>{group.name}</option>
+                        ))}
+                      </select>
+                      {selectedGroupId && (
+                        <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+                          {contacts.length} contacts in this group
+                        </small>
+                      )}
+                    </div>
+                  )}
+
+                  {selectMode === 'manual' && (
+                    <>
+                      <div style={{ marginBottom: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={toggleSelectAll}
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '12px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            background: 'white',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {selectedContacts.length === contacts.length ? 'Deselect All' : 'Select All'}
+                        </button>
+                      </div>
+                      <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e0e0e0', borderRadius: '6px', padding: '10px' }}>
+                        {contacts.map((contact) => (
+                          <label key={contact.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0' }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedContacts.includes(contact.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedContacts([...selectedContacts, contact.id])
+                                } else {
+                                  setSelectedContacts(selectedContacts.filter(id => id !== contact.id))
+                                }
+                              }}
+                            />
+                            {contact.name} ({contact.phone})
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
                   <small style={{ color: '#666' }}>{selectedContacts.length} contacts selected</small>
                 </div>
               </div>

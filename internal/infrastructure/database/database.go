@@ -41,6 +41,7 @@ func Migrate(db *gorm.DB) error {
 		&domain.Tenant{},
 		&domain.Device{},
 		&domain.Contact{},
+		&domain.Group{},
 		&domain.Campaign{},
 		&domain.Message{},
 	)

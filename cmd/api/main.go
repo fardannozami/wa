@@ -39,6 +39,7 @@ func main() {
 	tenantRepo := repository.NewTenantRepository(db)
 	deviceRepo := repository.NewDeviceRepository(db)
 	contactRepo := repository.NewContactRepository(db)
+	groupRepo := repository.NewGroupRepository(db)
 	campaignRepo := repository.NewCampaignRepository(db)
 	messageRepo := repository.NewMessageRepository(db)
 
@@ -52,6 +53,7 @@ func main() {
 	wsHandler := handlers.NewWSHandler(waService, cfg.JWTSecret, log)
 	messageHandler := handlers.NewMessageHandler(waService, log)
 	contactHandler := handlers.NewContactHandler(contactRepo, log)
+	groupHandler := handlers.NewGroupHandler(groupRepo, log)
 	campaignHandler := handlers.NewCampaignHandler(campaignRepo, contactRepo, messageRepo, log)
 	campaignHandler.SetWAService(waService)
 
@@ -88,6 +90,11 @@ func main() {
 		protected.PUT("/contacts/:id", contactHandler.Update)
 		protected.DELETE("/contacts/:id", contactHandler.Delete)
 		protected.POST("/contacts/import", contactHandler.ImportCSV)
+
+		protected.GET("/groups", groupHandler.List)
+		protected.POST("/groups", groupHandler.Create)
+		protected.PUT("/groups/:id", groupHandler.Update)
+		protected.DELETE("/groups/:id", groupHandler.Delete)
 
 		protected.GET("/campaigns", campaignHandler.List)
 		protected.POST("/campaigns", campaignHandler.Create)
