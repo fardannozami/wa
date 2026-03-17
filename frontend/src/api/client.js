@@ -59,7 +59,9 @@ export const campaignApi = {
   create: (data) => api.post('/campaigns', data),
   update: (id, data) => api.put(`/campaigns/${id}`, data),
   get: (id) => api.get(`/campaigns/${id}`),
+  getMessages: (id) => api.get(`/campaigns/${id}/messages`),
   send: (id, data) => api.post(`/campaigns/${id}/send`, data),
+  resendMessage: (messageId) => api.post(`/messages/${messageId}/resend`, {}),
   delete: (id) => api.delete(`/campaigns/${id}`),
 }
 

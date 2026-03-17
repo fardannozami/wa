@@ -94,6 +94,8 @@ func main() {
 		protected.PUT("/campaigns/:id", campaignHandler.Update)
 		protected.POST("/campaigns/:id/send", campaignHandler.Send)
 		protected.GET("/campaigns/:id", campaignHandler.Get)
+		protected.GET("/campaigns/:id/messages", campaignHandler.GetMessages)
+		protected.POST("/messages/:messageID/resend", campaignHandler.ResendMessage)
 		protected.DELETE("/campaigns/:id", campaignHandler.Delete)
 	}
 

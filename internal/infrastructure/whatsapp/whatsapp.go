@@ -37,6 +37,7 @@ type WAService interface {
 	Connect(tenantID string) error
 	Disconnect(tenantID string) error
 	SendMessage(tenantID, phone, message string) error
+	SendTypingIndicator(tenantID, phone string)
 	HandleQRWebSocket(tenantID string, w http.ResponseWriter, r *http.Request)
 	PushCampaignUpdate(tenantID string, data map[string]interface{})
 	Shutdown()
@@ -361,6 +362,22 @@ func (s *WhatsAppService) SendMessage(tenantID, phone, message string) error {
 
 	fmt.Printf("[WhatsMeow] Message sent to %s: %s (ID: %s)\n", phone, message, resp.ID)
 	return nil
+}
+
+func (s *WhatsAppService) SendTypingIndicator(tenantID, phone string) {
+	s.mu.RLock()
+	client, exists := s.clients[tenantID]
+	s.mu.RUnlock()
+
+	if !exists || client.Client == nil {
+		return
+	}
+
+	jid := types.NewJID(phone, "s.whatsapp.net")
+	err := client.Client.SendChatPresence(context.Background(), jid, types.ChatPresenceComposing, "")
+	if err != nil {
+		fmt.Printf("[WhatsMeow] Failed to send typing indicator: %v\n", err)
+	}
 }
 
 func (s *WhatsAppService) Shutdown() {

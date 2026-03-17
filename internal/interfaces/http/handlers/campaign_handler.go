@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -193,6 +194,59 @@ func (h *CampaignHandler) Get(c *gin.Context) {
 	})
 }
 
+func (h *CampaignHandler) GetMessages(c *gin.Context) {
+	tenantID := c.GetString("tenant_id")
+	campaignID := c.Param("id")
+
+	campaign, err := h.campaignRepo.FindByID(campaignID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Campaign not found"})
+		return
+	}
+
+	if campaign.TenantID != tenantID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized"})
+		return
+	}
+
+	messages, err := h.messageRepo.FindByCampaignID(campaignID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": messages})
+}
+
+func (h *CampaignHandler) ResendMessage(c *gin.Context) {
+	tenantID := c.GetString("tenant_id")
+	messageID := c.Param("messageID")
+
+	message, err := h.messageRepo.FindByID(messageID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Message not found"})
+		return
+	}
+
+	if message.TenantID != tenantID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized"})
+		return
+	}
+
+	if err := h.waService.SendMessage(tenantID, message.Phone, message.Message); err != nil {
+		message.Status = domain.MessageStatusFailed
+		h.log.Error("Failed to resend message", "error", err, "phone", message.Phone)
+	} else {
+		message.Status = domain.MessageStatusSent
+		now := time.Now()
+		message.SentAt = &now
+	}
+
+	h.messageRepo.Update(message)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Message resent"})
+}
+
 func (h *CampaignHandler) Delete(c *gin.Context) {
 	tenantID := c.GetString("tenant_id")
 	campaignID := c.Param("id")
@@ -302,6 +356,10 @@ func (h *CampaignHandler) processCampaignMessages(campaign *domain.Campaign, mes
 	failedCount := 0
 
 	for i, msg := range messages {
+		h.waService.SendTypingIndicator(campaign.TenantID, msg.Phone)
+
+		time.Sleep(500 * time.Millisecond)
+
 		if err := h.waService.SendMessage(campaign.TenantID, msg.Phone, msg.Message); err != nil {
 			msg.Status = domain.MessageStatusFailed
 			failedCount++
@@ -325,8 +383,14 @@ func (h *CampaignHandler) processCampaignMessages(campaign *domain.Campaign, mes
 			"failed_count":  failedCount,
 		})
 
+		if i < len(messages)-1 {
+			delay := time.Duration(10+rand.Intn(21)) * time.Second
+			time.Sleep(delay)
+		}
+
 		if i > 0 && i%10 == 0 {
-			time.Sleep(2 * time.Second)
+			delay := time.Duration(10+rand.Intn(51)) * time.Second
+			time.Sleep(delay)
 		}
 	}
 }

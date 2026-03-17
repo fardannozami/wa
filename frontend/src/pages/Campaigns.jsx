@@ -10,6 +10,10 @@ export default function Campaigns() {
   const [showModal, setShowModal] = useState(false)
   const [editingCampaign, setEditingCampaign] = useState(null)
   const [showSendModal, setShowSendModal] = useState(false)
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [detailCampaign, setDetailCampaign] = useState(null)
+  const [messages, setMessages] = useState([])
+  const [loadingMessages, setLoadingMessages] = useState(false)
   const [selectedCampaign, setSelectedCampaign] = useState(null)
   const [sendType, setSendType] = useState('now')
   const [scheduleDate, setScheduleDate] = useState('')
@@ -203,6 +207,32 @@ export default function Campaigns() {
     }
   }
 
+  const openDetailModal = async (campaign) => {
+    setDetailCampaign(campaign)
+    setShowDetailModal(true)
+    setLoadingMessages(true)
+    try {
+      const { data } = await campaignApi.getMessages(campaign.id)
+      setMessages(data.data || [])
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to load messages')
+    } finally {
+      setLoadingMessages(false)
+    }
+  }
+
+  const handleResend = async (messageId) => {
+    try {
+      await campaignApi.resendMessage(messageId)
+      toast.success('Message resent')
+      openDetailModal(detailCampaign)
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to resend message')
+    }
+  }
+
   const handleDelete = async (id) => {
     toast((t) => (
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -292,6 +322,13 @@ export default function Campaigns() {
                     <td>{campaign.failed_count || 0}</td>
                     <td>{new Date(campaign.created_at).toLocaleDateString()}</td>
                     <td>
+                      <button 
+                        onClick={() => openDetailModal(campaign)} 
+                        className="btn btn-secondary" 
+                        style={{ padding: '6px 12px', fontSize: '12px', marginRight: '8px' }}
+                      >
+                        View
+                      </button>
                       {campaign.status === 'draft' && (
                         <>
                           <button 
@@ -486,6 +523,70 @@ export default function Campaigns() {
               <button onClick={handleSend} className="btn btn-primary" disabled={sending}>
                 {sending ? 'Sending...' : (sendType === 'now' ? 'Send Now' : 'Schedule')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDetailModal && detailCampaign && (
+        <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">Campaign: {detailCampaign.name}</h3>
+              <button onClick={() => setShowDetailModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ marginBottom: '15px' }}>
+                <strong>Status:</strong> {detailCampaign.status}<br />
+                <strong>Total:</strong> {detailCampaign.total_count || 0} | 
+                <strong> Success:</strong> {detailCampaign.success_count || 0} | 
+                <strong> Failed:</strong> {detailCampaign.failed_count || 0}
+              </div>
+              
+              {loadingMessages ? (
+                <div style={{ textAlign: 'center', padding: '20px' }}>Loading messages...</div>
+              ) : messages.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>No messages</div>
+              ) : (
+                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Phone</th>
+                        <th>Message</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {messages.map((msg) => (
+                        <tr key={msg.id}>
+                          <td>{msg.phone}</td>
+                          <td style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {msg.message}
+                          </td>
+                          <td>
+                            <span className={`status-badge ${msg.status === 'sent' ? 'status-completed' : msg.status === 'failed' ? 'status-disconnected' : 'status-running'}`}>
+                              {msg.status}
+                            </span>
+                          </td>
+                          <td>
+                            {msg.status === 'failed' && (
+                              <button 
+                                onClick={() => handleResend(msg.id)} 
+                                className="btn btn-primary" 
+                                style={{ padding: '4px 8px', fontSize: '11px' }}
+                              >
+                                Resend
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </div>
