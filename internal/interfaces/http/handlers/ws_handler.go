@@ -33,10 +33,7 @@ func (h *WSHandler) HandleQR(c *gin.Context) {
 	if c.Request.Header.Get("Upgrade") == "websocket" {
 		tokenString := c.Query("token")
 		if tokenString == "" {
-			tokenString = c.GetHeader("Authorization")
-			if strings.HasPrefix(tokenString, "Bearer ") {
-				tokenString = strings.TrimPrefix(tokenString, "Bearer ")
-			}
+			tokenString = strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
 		}
 		if tokenString == "" {
 			c.JSON(401, gin.H{"error": "token required"})
