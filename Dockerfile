@@ -18,7 +18,7 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates
 
 COPY --from=builder /app/api .
-COPY --from=builder /app/sessions ./sessions
+RUN mkdir -p sessions
 
 EXPOSE 8080
 
