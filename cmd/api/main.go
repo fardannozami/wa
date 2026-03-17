@@ -12,6 +12,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/wa-saas/internal/infrastructure/database"
 	"github.com/wa-saas/internal/infrastructure/repository"
+	"github.com/wa-saas/internal/infrastructure/scheduler"
 	"github.com/wa-saas/internal/infrastructure/whatsapp"
 	"github.com/wa-saas/internal/interfaces/http/handlers"
 	"github.com/wa-saas/internal/interfaces/http/middleware"
@@ -25,7 +26,7 @@ func main() {
 
 	log := logger.New(cfg.LogLevel)
 
-	db, err := database.NewPostgresDB(cfg.DatabaseURL)
+	db, err := database.NewPostgresDB(cfg.DatabaseURL, cfg.LogLevel)
 	if err != nil {
 		log.Fatal("Failed to connect to database", "error", err)
 	}
@@ -43,11 +44,16 @@ func main() {
 
 	waService := whatsapp.NewWhatsAppService(deviceRepo, cfg.SessionDir)
 
+	campaignScheduler := scheduler.NewCampaignScheduler(campaignRepo, messageRepo, waService)
+	campaignScheduler.Start()
+
 	authHandler := handlers.NewAuthHandler(userRepo, tenantRepo, cfg, log)
 	deviceHandler := handlers.NewDeviceHandler(deviceRepo, waService, log)
 	wsHandler := handlers.NewWSHandler(waService, cfg.JWTSecret, log)
+	messageHandler := handlers.NewMessageHandler(waService, log)
 	contactHandler := handlers.NewContactHandler(contactRepo, log)
 	campaignHandler := handlers.NewCampaignHandler(campaignRepo, contactRepo, messageRepo, log)
+	campaignHandler.SetWAService(waService)
 
 	router := gin.Default()
 	router.Use(middleware.CORS())
@@ -75,6 +81,8 @@ func main() {
 		protected.POST("/device/disconnect", deviceHandler.Disconnect)
 		protected.GET("/device/status", deviceHandler.GetStatus)
 
+		protected.POST("/messages", messageHandler.Send)
+
 		protected.GET("/contacts", contactHandler.List)
 		protected.POST("/contacts", contactHandler.Create)
 		protected.PUT("/contacts/:id", contactHandler.Update)
@@ -83,6 +91,8 @@ func main() {
 
 		protected.GET("/campaigns", campaignHandler.List)
 		protected.POST("/campaigns", campaignHandler.Create)
+		protected.PUT("/campaigns/:id", campaignHandler.Update)
+		protected.POST("/campaigns/:id/send", campaignHandler.Send)
 		protected.GET("/campaigns/:id", campaignHandler.Get)
 		protected.DELETE("/campaigns/:id", campaignHandler.Delete)
 	}
@@ -115,6 +125,7 @@ func main() {
 	}
 
 	waService.Shutdown()
+	campaignScheduler.Stop()
 
 	log.Info("Server exited")
 }

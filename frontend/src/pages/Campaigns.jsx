@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { campaignApi, contactApi } from '../api/client'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import toast from 'react-hot-toast'
+import { campaignApi, contactApi, deviceApi } from '../api/client'
 
 export default function Campaigns() {
   const [campaigns, setCampaigns] = useState([])
@@ -7,13 +8,100 @@ export default function Campaigns() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [editingCampaign, setEditingCampaign] = useState(null)
+  const [createSendType, setCreateSendType] = useState('now')
+  const [createScheduleDate, setCreateScheduleDate] = useState('')
+  const [createScheduleTime, setCreateScheduleTime] = useState('')
+  const [showSendModal, setShowSendModal] = useState(false)
+  const [selectedCampaign, setSelectedCampaign] = useState(null)
+  const [sendType, setSendType] = useState('now')
+  const [scheduleDate, setScheduleDate] = useState('')
+  const [scheduleTime, setScheduleTime] = useState('')
+  const [sending, setSending] = useState(false)
+  const [deviceStatus, setDeviceStatus] = useState('disconnected')
   const [contacts, setContacts] = useState([])
   const [selectedContacts, setSelectedContacts] = useState([])
   const [formData, setFormData] = useState({ name: '', template: '' })
+  const wsRef = useRef(null)
+
+  const connectWebSocket = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log('[Campaigns WS] Already connected')
+      return
+    }
+
+    try {
+      console.log('[Campaigns WS] Connecting...')
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const token = localStorage.getItem('token')
+      const wsUrl = `${protocol}//${window.location.host}/api/v1/device/ws?token=${token}`
+      console.log('[Campaigns WS] URL:', wsUrl)
+
+      const ws = new WebSocket(wsUrl)
+
+      ws.onopen = () => {
+        console.log('[Campaigns WS] Connected')
+      }
+
+      ws.onerror = (error) => {
+        console.error('[Campaigns WS] Error:', error)
+      }
+
+      ws.onmessage = (event) => {
+        console.log('[Campaigns WS] Received:', event.data)
+        try {
+          const data = JSON.parse(event.data)
+          console.log('[Campaigns WS] Parsed:', data)
+          if (data.type === 'campaign_update') {
+            setCampaigns(prev => prev.map(c => 
+              c.id === data.campaign_id 
+                ? { ...c, status: data.status, success_count: data.success_count, failed_count: data.failed_count }
+                : c
+            ))
+          }
+        } catch (e) {
+          console.error('WS parse error:', e)
+        }
+      }
+
+      ws.onclose = () => {
+        console.log('[Campaigns WS] Disconnected, reconnecting in 3s...')
+        wsRef.current = null
+        setTimeout(() => {
+          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            connectWebSocket()
+          }
+        }, 3000)
+      }
+
+      wsRef.current = ws
+    } catch (e) {
+      console.error('[Campaigns WS] Connection error:', e)
+    }
+  }, [])
 
   useEffect(() => {
     loadCampaigns()
-  }, [page])
+    loadDeviceStatus()
+    connectWebSocket()
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close()
+      }
+    }
+  }, [page, connectWebSocket])
+
+  const loadDeviceStatus = async () => {
+    try {
+      const { data } = await deviceApi.get()
+      if (data.device) {
+        setDeviceStatus(data.device.status || 'disconnected')
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   const loadCampaigns = async () => {
     setLoading(true)
@@ -25,6 +113,40 @@ export default function Campaigns() {
       console.error(e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const openSendModal = (campaign) => {
+    setSelectedCampaign(campaign)
+    setSendType('now')
+    setScheduleDate('')
+    setScheduleTime('')
+    setShowSendModal(true)
+  }
+
+  const handleSend = async () => {
+    if (!selectedCampaign) return
+
+    let scheduledAt = null
+    if (sendType === 'schedule') {
+      if (!scheduleDate || !scheduleTime) {
+        toast.error('Please select date and time')
+        return
+      }
+      scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString()
+    }
+
+    setSending(true)
+    try {
+      await campaignApi.send(selectedCampaign.id, { scheduled_at: scheduledAt })
+      setShowSendModal(false)
+      toast.success(scheduledAt ? 'Campaign scheduled!' : 'Campaign started!')
+      loadCampaigns()
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to start campaign: ' + e.response?.data?.error)
+    } finally {
+      setSending(false)
     }
   }
 
@@ -40,32 +162,92 @@ export default function Campaigns() {
   const openModal = async () => {
     await loadContacts()
     setSelectedContacts([])
+    setCreateSendType('now')
+    setCreateScheduleDate('')
+    setCreateScheduleTime('')
     setShowModal(true)
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    let scheduledAt = null
+    if (createSendType === 'schedule') {
+      if (!createScheduleDate || !createScheduleTime) {
+        toast.error('Please select date and time')
+        return
+      }
+      scheduledAt = new Date(`${createScheduleDate}T${createScheduleTime}`).toISOString()
+    }
+    
     try {
-      await campaignApi.create({
-        ...formData,
-        contact_ids: selectedContacts,
-      })
+      if (editingCampaign) {
+        await campaignApi.update(editingCampaign.id, {
+          ...formData,
+          contact_ids: selectedContacts,
+          scheduled_at: scheduledAt,
+        })
+      } else {
+        await campaignApi.create({
+          ...formData,
+          contact_ids: selectedContacts,
+          scheduled_at: scheduledAt,
+        })
+      }
       setShowModal(false)
+      setEditingCampaign(null)
       setFormData({ name: '', template: '' })
       setSelectedContacts([])
+      setCreateSendType('now')
+      setCreateScheduleDate('')
+      setCreateScheduleTime('')
       loadCampaigns()
     } catch (e) {
       console.error(e)
     }
   }
 
+  const handleEdit = async (campaign) => {
+    await loadContacts()
+    setEditingCampaign(campaign)
+    setFormData({ name: campaign.name, template: campaign.template || '' })
+    setSelectedContacts([])
+    setCreateSendType('now')
+    setCreateScheduleDate('')
+    setCreateScheduleTime('')
+    setShowModal(true)
+  }
+
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this campaign?')) return
+    toast((t) => (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span>Delete this campaign?</span>
+        <div style={{ display: 'flex', gap: '5px' }}>
+          <button 
+            onClick={() => { toast.dismiss(t.id); deleteCampaign(id) }}
+            style={{ background: '#dc2626', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            Delete
+          </button>
+          <button 
+            onClick={() => toast.dismiss(t.id)}
+            style={{ background: '#6b7280', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ), { duration: 5000 })
+  }
+
+  const deleteCampaign = async (id) => {
     try {
       await campaignApi.delete(id)
+      toast.success('Campaign deleted')
       loadCampaigns()
     } catch (e) {
       console.error(e)
+      toast.error('Failed to delete campaign')
     }
   }
 
@@ -125,6 +307,25 @@ export default function Campaigns() {
                     <td>{campaign.failed_count || 0}</td>
                     <td>{new Date(campaign.created_at).toLocaleDateString()}</td>
                     <td>
+                      {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
+                        <>
+                          <button 
+                            onClick={() => openSendModal(campaign)} 
+                            className="btn btn-primary" 
+                            style={{ padding: '6px 12px', fontSize: '12px', marginRight: '8px' }}
+                            disabled={deviceStatus !== 'connected' && deviceStatus !== 'active'}
+                          >
+                            {campaign.status === 'scheduled' ? 'Run Now' : 'Send'}
+                          </button>
+                          <button 
+                            onClick={() => handleEdit(campaign)} 
+                            className="btn btn-secondary" 
+                            style={{ padding: '6px 12px', fontSize: '12px', marginRight: '8px' }}
+                          >
+                            Edit
+                          </button>
+                        </>
+                      )}
                       <button onClick={() => handleDelete(campaign.id)} className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '12px' }}>
                         Delete
                       </button>
@@ -150,10 +351,10 @@ export default function Campaigns() {
       </div>
 
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setEditingCampaign(null) }}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">Create Campaign</h3>
+              <h3 className="modal-title">{editingCampaign ? 'Edit Campaign' : 'Create Campaign'}</h3>
               <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
             <form onSubmit={handleSubmit}>
@@ -202,14 +403,134 @@ export default function Campaigns() {
                   </div>
                   <small style={{ color: '#666' }}>{selectedContacts.length} contacts selected</small>
                 </div>
+
+                <div className="form-group">
+                  <label className="form-label">Send Option</label>
+                  <div style={{ display: 'flex', gap: '20px', marginTop: '10px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="radio"
+                        name="createSendType"
+                        checked={createSendType === 'now'}
+                        onChange={() => setCreateSendType('now')}
+                      />
+                      Send Now
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="radio"
+                        name="createSendType"
+                        checked={createSendType === 'schedule'}
+                        onChange={() => setCreateSendType('schedule')}
+                      />
+                      Schedule
+                    </label>
+                  </div>
+                </div>
+
+                {createSendType === 'schedule' && (
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                    <div className="form-group" style={{ flex: 1 }}>
+                      <label className="form-label">Date</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        value={createScheduleDate}
+                        onChange={(e) => setCreateScheduleDate(e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                      />
+                    </div>
+                    <div className="form-group" style={{ flex: 1 }}>
+                      <label className="form-label">Time</label>
+                      <input
+                        type="time"
+                        className="form-input"
+                        value={createScheduleTime}
+                        onChange={(e) => setCreateScheduleTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="modal-footer">
                 <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary">Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={selectedContacts.length === 0}>
-                  Create Campaign
+                  {editingCampaign ? 'Update Campaign' : 'Create Campaign'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showSendModal && selectedCampaign && (
+        <div className="modal-overlay" onClick={() => setShowSendModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Send Campaign: {selectedCampaign.name}</h3>
+              <button onClick={() => setShowSendModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Send Option</label>
+                <div style={{ display: 'flex', gap: '20px', marginTop: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="radio"
+                      name="sendType"
+                      checked={sendType === 'now'}
+                      onChange={() => setSendType('now')}
+                    />
+                    Send Now
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="radio"
+                      name="sendType"
+                      checked={sendType === 'schedule'}
+                      onChange={() => setSendType('schedule')}
+                    />
+                    Schedule
+                  </label>
+                </div>
+              </div>
+
+              {sendType === 'schedule' && (
+                <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Date</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={scheduleDate}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Time</label>
+                    <input
+                      type="time"
+                      className="form-input"
+                      value={scheduleTime}
+                      onChange={(e) => setScheduleTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {sendType === 'schedule' && scheduleDate && scheduleTime && (
+                <p style={{ marginTop: '10px', color: '#666' }}>
+                  Will be sent on: {new Date(`${scheduleDate}T${scheduleTime}`).toLocaleString()}
+                </p>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button type="button" onClick={() => setShowSendModal(false)} className="btn btn-secondary">Cancel</button>
+              <button onClick={handleSend} className="btn btn-primary" disabled={sending}>
+                {sending ? 'Sending...' : (sendType === 'now' ? 'Send Now' : 'Schedule')}
+              </button>
+            </div>
           </div>
         </div>
       )}

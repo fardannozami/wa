@@ -10,9 +10,14 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func NewPostgresDB(dsn string) (*gorm.DB, error) {
+func NewPostgresDB(dsn string, logLevel string) (*gorm.DB, error) {
+	lvl := logger.Error
+	if logLevel == "debug" {
+		lvl = logger.Info
+	}
+
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(lvl),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)

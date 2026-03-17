@@ -40,6 +40,10 @@ export const deviceApi = {
   getStatus: () => api.get('/device/status'),
 }
 
+export const messageApi = {
+  send: (phone, message) => api.post('/messages', { phone, message }),
+}
+
 export const contactApi = {
   list: (page = 1, limit = 20) => api.get(`/contacts?page=${page}&limit=${limit}`),
   create: (data) => api.post('/contacts', data),
@@ -53,7 +57,9 @@ export const contactApi = {
 export const campaignApi = {
   list: (page = 1, limit = 20) => api.get(`/campaigns?page=${page}&limit=${limit}`),
   create: (data) => api.post('/campaigns', data),
+  update: (id, data) => api.put(`/campaigns/${id}`, data),
   get: (id) => api.get(`/campaigns/${id}`),
+  send: (id, data) => api.post(`/campaigns/${id}/send`, data),
   delete: (id) => api.delete(`/campaigns/${id}`),
 }
 

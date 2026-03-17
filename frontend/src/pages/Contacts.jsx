@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { contactApi } from '../api/client'
+import toast from 'react-hot-toast'
+import { contactApi, messageApi, deviceApi } from '../api/client'
 
 export default function Contacts() {
   const [contacts, setContacts] = useState([])
@@ -7,11 +8,52 @@ export default function Contacts() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [showMessageModal, setShowMessageModal] = useState(false)
+  const [selectedContact, setSelectedContact] = useState(null)
+  const [messageText, setMessageText] = useState('')
+  const [sending, setSending] = useState(false)
+  const [deviceStatus, setDeviceStatus] = useState('disconnected')
   const [formData, setFormData] = useState({ name: '', phone: '', tags: '' })
 
   useEffect(() => {
     loadContacts()
+    loadDeviceStatus()
   }, [page])
+
+  const loadDeviceStatus = async () => {
+    try {
+      const { data } = await deviceApi.get()
+      if (data.device) {
+        setDeviceStatus(data.device.status || 'disconnected')
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault()
+    if (!selectedContact) return
+    
+    setSending(true)
+    try {
+      await messageApi.send(selectedContact.phone, messageText)
+      setShowMessageModal(false)
+      setSelectedContact(null)
+      setMessageText('')
+      toast.success('Message sent successfully!')
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to send message: ' + e.response?.data?.error)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const openMessageModal = (contact) => {
+    setSelectedContact(contact)
+    setShowMessageModal(true)
+  }
 
   const loadContacts = async () => {
     setLoading(true)
@@ -39,12 +81,35 @@ export default function Contacts() {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this contact?')) return
+    toast((t) => (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span>Delete this contact?</span>
+        <div style={{ display: 'flex', gap: '5px' }}>
+          <button 
+            onClick={() => { toast.dismiss(t.id); deleteContact(id) }}
+            style={{ background: '#dc2626', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            Delete
+          </button>
+          <button 
+            onClick={() => toast.dismiss(t.id)}
+            style={{ background: '#6b7280', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ), { duration: 5000 })
+  }
+
+  const deleteContact = async (id) => {
     try {
       await contactApi.delete(id)
+      toast.success('Contact deleted')
       loadContacts()
     } catch (e) {
       console.error(e)
+      toast.error('Failed to delete contact')
     }
   }
 
@@ -58,10 +123,10 @@ export default function Contacts() {
     try {
       await contactApi.import(formData)
       loadContacts()
-      alert('Contacts imported successfully!')
+      toast.success('Contacts imported successfully!')
     } catch (e) {
       console.error(e)
-      alert('Failed to import contacts')
+      toast.error('Failed to import contacts')
     }
   }
 
@@ -105,6 +170,9 @@ export default function Contacts() {
                     <td>{contact.phone}</td>
                     <td>{contact.tags || '-'}</td>
                     <td>
+                      <button onClick={() => openMessageModal(contact)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px', marginRight: '8px' }} disabled={deviceStatus !== 'connected' && deviceStatus !== 'active'}>
+                        Send
+                      </button>
                       <button onClick={() => handleDelete(contact.id)} className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '12px' }}>
                         Delete
                       </button>
@@ -173,6 +241,42 @@ export default function Contacts() {
               <div className="modal-footer">
                 <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary">Cancel</button>
                 <button type="submit" className="btn btn-primary">Add Contact</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showMessageModal && selectedContact && (
+        <div className="modal-overlay" onClick={() => setShowMessageModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Send Message to {selectedContact.name}</h3>
+              <button onClick={() => setShowMessageModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+            <form onSubmit={handleSendMessage}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Phone</label>
+                  <input type="text" className="form-input" value={selectedContact.phone} disabled />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Message</label>
+                  <textarea
+                    className="form-input"
+                    rows="5"
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    placeholder="Type your message..."
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowMessageModal(false)} className="btn btn-secondary">Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={sending}>
+                  {sending ? 'Sending...' : 'Send Message'}
+                </button>
               </div>
             </form>
           </div>

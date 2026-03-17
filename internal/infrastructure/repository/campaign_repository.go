@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/wa-saas/internal/domain"
 	"gorm.io/gorm"
 )
@@ -51,4 +53,11 @@ func (r *CampaignRepository) Update(campaign *domain.Campaign) error {
 
 func (r *CampaignRepository) Delete(id string) error {
 	return r.db.Delete(&domain.Campaign{}, "id = ?", id).Error
+}
+
+func (r *CampaignRepository) FindScheduled() ([]domain.Campaign, error) {
+	var campaigns []domain.Campaign
+	err := r.db.Where("status = ? AND scheduled_at IS NOT NULL AND scheduled_at <= ?",
+		domain.CampaignStatusScheduled, time.Now()).Find(&campaigns).Error
+	return campaigns, err
 }

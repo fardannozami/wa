@@ -35,4 +35,5 @@ type CampaignRepository interface {
 	FindByID(id string) (*Campaign, error)
 	Update(campaign *Campaign) error
 	Delete(id string) error
+	FindScheduled() ([]Campaign, error)
 }
