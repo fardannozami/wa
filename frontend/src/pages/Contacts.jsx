@@ -23,6 +23,7 @@ export default function Contacts() {
   const [whatsappGroups, setWhatsappGroups] = useState([])
   const [loadingWhatsappGroups, setLoadingWhatsappGroups] = useState(false)
   const [importingFromGroup, setImportingFromGroup] = useState(null)
+  const [groupSearch, setGroupSearch] = useState('')
 
   useEffect(() => {
     loadContacts()
@@ -114,6 +115,7 @@ export default function Contacts() {
   }
 
   const openEditModal = (contact) => {
+    loadGroups()
     setEditingContact(contact)
     const groupIds = contact.groups ? contact.groups.map(g => g.id) : []
     setFormData({ name: contact.name, phone: contact.phone, prefix: contact.prefix || '', group_ids: groupIds })
@@ -121,6 +123,7 @@ export default function Contacts() {
   }
 
   const openAddModal = () => {
+    loadGroups()
     setEditingContact(null)
     setFormData({ name: '', phone: '', prefix: '', group_ids: [] })
     setShowModal(true)
@@ -454,9 +457,42 @@ export default function Contacts() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Groups (select multiple)</label>
-                  <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #e0e0e0', borderRadius: '6px', padding: '10px' }}>
-                    {groups.map(group => (
-                      <label key={group.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}>
+                  <div style={{ marginBottom: '10px' }}>
+                    <input 
+                      type="text" 
+                      placeholder="Search groups..." 
+                      className="form-input" 
+                      style={{ padding: '6px 12px', fontSize: '12px' }}
+                      value={groupSearch}
+                      onChange={(e) => setGroupSearch(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ 
+                    maxHeight: '260px', 
+                    overflowY: 'auto', 
+                    border: '1px solid #e2e8f0', 
+                    borderRadius: '8px', 
+                    padding: '8px 4px',
+                    background: '#f8fafc'
+                  }}>
+                    {groups
+                      .filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase()))
+                      .map(group => (
+                      <label 
+                        key={group.id} 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '10px', 
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          borderRadius: '6px',
+                          transition: 'background 0.2s ease'
+                        }}
+                        className="group-list-item"
+                        onMouseEnter={(e) => e.target.style.background = '#f1f5f9'}
+                        onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                      >
                         <input
                           type="checkbox"
                           checked={formData.group_ids.includes(group.id)}
@@ -468,10 +504,13 @@ export default function Contacts() {
                             }
                           }}
                         />
-                        {group.name}
+                        <span style={{ fontSize: '13px', fontWeight: '500' }}>{group.name}</span>
                       </label>
                     ))}
-                    {groups.length === 0 && <div style={{ color: '#666' }}>No groups available</div>}
+                    {groups.length === 0 && <div style={{ color: '#666', padding: '10px', textAlign: 'center' }}>No groups available</div>}
+                    {groups.length > 0 && groups.filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase())).length === 0 && (
+                      <div style={{ color: '#666', padding: '10px', textAlign: 'center' }}>No groups matching "{groupSearch}"</div>
+                    )}
                   </div>
                 </div>
               </div>
