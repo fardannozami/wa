@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import Device from './pages/Device'
 import Contacts from './pages/Contacts'
 import Campaigns from './pages/Campaigns'
+import AdminDashboard from './pages/AdminDashboard'
 
 function OAuthCallback() {
   const [searchParams] = useSearchParams()
@@ -62,6 +63,24 @@ function PrivateRoute({ children }) {
   return isAuthenticated ? children : <Navigate to="/login" />
 }
 
+function AdminRoute({ children }) {
+  const { user, isAuthenticated, loading } = useAuthStore()
+  
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="spinner" />
+      </div>
+    )
+  }
+  
+  if (!isAuthenticated || !user?.is_admin) {
+    return <Navigate to="/dashboard" />
+  }
+  
+  return children
+}
+
 function App() {
   const { checkAuth, loading } = useAuthStore()
 
@@ -89,6 +108,7 @@ function App() {
           <Route path="device" element={<Device />} />
           <Route path="contacts" element={<Contacts />} />
           <Route path="campaigns" element={<Campaigns />} />
+          <Route path="admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
         </Route>
       </Routes>
     </BrowserRouter>

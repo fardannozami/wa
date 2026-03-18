@@ -56,6 +56,7 @@ func main() {
 	groupHandler := handlers.NewGroupHandler(groupRepo, log)
 	campaignHandler := handlers.NewCampaignHandler(campaignRepo, contactRepo, messageRepo, log)
 	campaignHandler.SetWAService(waService)
+	adminHandler := handlers.NewAdminHandler(userRepo, messageRepo, log)
 
 	router := gin.Default()
 	router.Use(middleware.CORS())
@@ -104,6 +105,14 @@ func main() {
 		protected.GET("/campaigns/:id/messages", campaignHandler.GetMessages)
 		protected.POST("/messages/:messageID/resend", campaignHandler.ResendMessage)
 		protected.DELETE("/campaigns/:id", campaignHandler.Delete)
+
+		// Admin routes
+		admin := protected.Group("/admin")
+		admin.Use(middleware.AdminMiddleware())
+		{
+			admin.GET("/stats", adminHandler.GetStats)
+			admin.GET("/users", adminHandler.ListUsers)
+		}
 	}
 
 	router.GET("/api/v1/device/ws", wsHandler.HandleQR)

@@ -87,3 +87,9 @@ func (r *MessageRepository) MarkAsFailed(id, errMsg string) error {
 		"updated_at":  now,
 	}).Error
 }
+
+func (r *MessageRepository) CountAllSent() (int64, error) {
+	var count int64
+	err := r.db.Model(&domain.Message{}).Where("status = ?", domain.MessageStatusSent).Count(&count).Error
+	return count, err
+}

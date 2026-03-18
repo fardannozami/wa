@@ -4,7 +4,7 @@ import { useAuthStore } from '../hooks/useAuth'
 
 export default function Layout() {
   const navigate = useNavigate()
-  const { logout } = useAuthStore()
+  const { logout, user } = useAuthStore()
 
   const handleLogout = async () => {
     try {
@@ -62,6 +62,14 @@ export default function Layout() {
             </svg>
             <span>Campaigns</span>
           </NavLink>
+          {user?.is_admin && (
+            <NavLink to="/admin" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <span>Admin</span>
+            </NavLink>
+          )}
         </nav>
         <div className="sidebar-footer">
           <a href="https://trakteer.id/nozami_id/link" target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ width: '100%', gap: '8px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>

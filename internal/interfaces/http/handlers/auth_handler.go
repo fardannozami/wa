@@ -104,7 +104,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	jwtToken, err := h.generateToken(user.ID, tenant.ID, user.Email)
+	jwtToken, err := h.generateToken(user.ID, tenant.ID, user.Email, user.IsAdmin)
 	if err != nil {
 		h.log.Error("Failed to generate token", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
@@ -179,11 +179,12 @@ func (h *AuthHandler) findOrCreateTenant(ownerID string) (*domain.Tenant, error)
 	return tenant, nil
 }
 
-func (h *AuthHandler) generateToken(userID, tenantID, email string) (string, error) {
+func (h *AuthHandler) generateToken(userID, tenantID, email string, isAdmin bool) (string, error) {
 	claims := &httpmiddleware.Claims{
 		UserID:   userID,
 		TenantID: tenantID,
 		Email:    email,
+		IsAdmin:  isAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -210,6 +211,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 			"id":        userID,
 			"email":     email,
 			"tenant_id": tenantID,
+			"is_admin":  c.GetBool("is_admin"),
 		},
 	})
 }

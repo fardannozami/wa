@@ -34,3 +34,15 @@ func (r *UserRepository) FindByID(id string) (*domain.User, error) {
 	}
 	return &user, nil
 }
+
+func (r *UserRepository) FindAll() ([]domain.User, error) {
+	var users []domain.User
+	err := r.db.Order("created_at DESC").Find(&users).Error
+	return users, err
+}
+
+func (r *UserRepository) Count() (int64, error) {
+	var count int64
+	err := r.db.Model(&domain.User{}).Count(&count).Error
+	return count, err
+}

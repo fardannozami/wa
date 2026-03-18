@@ -74,4 +74,9 @@ export const campaignApi = {
   delete: (id) => api.delete(`/campaigns/${id}`),
 }
 
+export const adminApi = {
+  getStats: () => api.get('/admin/stats'),
+  listUsers: () => api.get('/admin/users'),
+}
+
 export default api
