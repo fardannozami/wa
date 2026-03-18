@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"net/http"
+	"runtime"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/wa-saas/internal/domain"
@@ -12,6 +14,7 @@ type AdminHandler struct {
 	userRepo    domain.UserRepository
 	messageRepo domain.MessageRepository
 	log         *logger.Logger
+	startTime   time.Time
 }
 
 func NewAdminHandler(userRepo domain.UserRepository, messageRepo domain.MessageRepository, log *logger.Logger) *AdminHandler {
@@ -19,6 +22,7 @@ func NewAdminHandler(userRepo domain.UserRepository, messageRepo domain.MessageR
 		userRepo:    userRepo,
 		messageRepo: messageRepo,
 		log:         log,
+		startTime:   time.Now(),
 	}
 }
 
@@ -52,4 +56,23 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, users)
+}
+
+func (h *AdminHandler) GetMetrics(c *gin.Context) {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	metrics := gin.H{
+		"memory": gin.H{
+			"alloc":       m.Alloc / 1024 / 1024,
+			"total_alloc": m.TotalAlloc / 1024 / 1024,
+			"sys":         m.Sys / 1024 / 1024,
+			"num_gc":      m.NumGC,
+		},
+		"goroutines": runtime.NumGoroutine(),
+		"cpus":       runtime.NumCPU(),
+		"uptime":     time.Since(h.startTime).Seconds(),
+	}
+
+	c.JSON(http.StatusOK, metrics)
 }

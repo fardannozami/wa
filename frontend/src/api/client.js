@@ -77,6 +77,7 @@ export const campaignApi = {
 export const adminApi = {
   getStats: () => api.get('/admin/stats'),
   listUsers: () => api.get('/admin/users'),
+  getMetrics: () => api.get('/admin/metrics'),
 }
 
 export default api

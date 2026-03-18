@@ -112,6 +112,7 @@ func main() {
 		{
 			admin.GET("/stats", adminHandler.GetStats)
 			admin.GET("/users", adminHandler.ListUsers)
+			admin.GET("/metrics", adminHandler.GetMetrics)
 		}
 	}
 
