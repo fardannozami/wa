@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"strings"
@@ -390,12 +390,7 @@ func (h *CampaignHandler) processCampaignMessages(campaign *domain.Campaign, mes
 		})
 
 		if i < len(messages)-1 {
-			delay := time.Duration(10+rand.Intn(21)) * time.Second
-			time.Sleep(delay)
-		}
-
-		if i > 0 && i%10 == 0 {
-			delay := time.Duration(10+rand.Intn(51)) * time.Second
+			delay := time.Duration(25+rand.IntN(36)) * time.Second
 			time.Sleep(delay)
 		}
 	}

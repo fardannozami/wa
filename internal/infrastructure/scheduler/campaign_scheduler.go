@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"github.com/wa-saas/internal/domain"
@@ -83,6 +84,9 @@ func (s *CampaignScheduler) runCampaign(campaign *domain.Campaign) {
 	failedCount := 0
 
 	for i, msg := range messages {
+		s.waService.SendTypingIndicator(campaign.TenantID, msg.Phone)
+		time.Sleep(2 * time.Second)
+
 		if err := s.waService.SendMessage(campaign.TenantID, msg.Phone, msg.Message, msg.ImageURL); err != nil {
 			msg.Status = domain.MessageStatusFailed
 			failedCount++
@@ -106,8 +110,9 @@ func (s *CampaignScheduler) runCampaign(campaign *domain.Campaign) {
 			"failed_count":  failedCount,
 		})
 
-		if i > 0 && i%10 == 0 {
-			time.Sleep(2 * time.Second)
+		if i < len(messages)-1 {
+			delay := time.Duration(25+rand.IntN(36)) * time.Second
+			time.Sleep(delay)
 		}
 	}
 
