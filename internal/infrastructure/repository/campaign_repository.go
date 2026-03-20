@@ -61,3 +61,9 @@ func (r *CampaignRepository) FindScheduled() ([]domain.Campaign, error) {
 		domain.CampaignStatusScheduled, time.Now()).Find(&campaigns).Error
 	return campaigns, err
 }
+
+func (r *CampaignRepository) CountByTenantID(tenantID string) (int64, error) {
+	var count int64
+	err := r.db.Model(&domain.Campaign{}).Where("tenant_id = ?", tenantID).Count(&count).Error
+	return count, err
+}

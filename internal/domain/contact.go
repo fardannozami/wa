@@ -35,6 +35,7 @@ type ContactRepository interface {
 	AddGroup(contactID, groupID string) error
 	RemoveGroup(contactID, groupID string) error
 	SetGroups(contactID string, groupIDs []string) error
+	CountByTenantID(tenantID string) (int64, error)
 }
 
 type GroupRepository interface {

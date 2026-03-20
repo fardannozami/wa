@@ -80,6 +80,10 @@ export const mediaApi = {
   }),
 }
 
+export const statsApi = {
+  get: () => api.get('/stats'),
+}
+
 export const adminApi = {
   getStats: () => api.get('/admin/stats'),
   listUsers: () => api.get('/admin/users'),

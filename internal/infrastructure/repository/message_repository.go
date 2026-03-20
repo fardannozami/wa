@@ -93,3 +93,9 @@ func (r *MessageRepository) CountAllSent() (int64, error) {
 	err := r.db.Model(&domain.Message{}).Where("status = ?", domain.MessageStatusSent).Count(&count).Error
 	return count, err
 }
+
+func (r *MessageRepository) CountSentByTenantID(tenantID string) (int64, error) {
+	var count int64
+	err := r.db.Model(&domain.Message{}).Where("tenant_id = ? AND status = ?", tenantID, domain.MessageStatusSent).Count(&count).Error
+	return count, err
+}

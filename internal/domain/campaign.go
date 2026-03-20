@@ -37,4 +37,5 @@ type CampaignRepository interface {
 	Update(campaign *Campaign) error
 	Delete(id string) error
 	FindScheduled() ([]Campaign, error)
+	CountByTenantID(tenantID string) (int64, error)
 }

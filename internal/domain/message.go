@@ -39,4 +39,5 @@ type MessageRepository interface {
 	FindPendingByTenantID(tenantID string, limit int) ([]Message, error)
 	CountByCampaignID(campaignID string) (int64, int64, int64, error)
 	CountAllSent() (int64, error)
+	CountSentByTenantID(tenantID string) (int64, error)
 }

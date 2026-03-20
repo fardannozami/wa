@@ -57,6 +57,7 @@ func main() {
 	campaignHandler := handlers.NewCampaignHandler(campaignRepo, contactRepo, messageRepo, log)
 	campaignHandler.SetWAService(waService)
 	adminHandler := handlers.NewAdminHandler(userRepo, messageRepo, log)
+	statsHandler := handlers.NewStatsHandler(campaignRepo, contactRepo, messageRepo, log)
 	mediaHandler := handlers.NewMediaHandler(log)
 
 	router := gin.Default()
@@ -109,6 +110,8 @@ func main() {
 		protected.GET("/campaigns/:id/messages", campaignHandler.GetMessages)
 		protected.POST("/messages/:messageID/resend", campaignHandler.ResendMessage)
 		protected.DELETE("/campaigns/:id", campaignHandler.Delete)
+
+		protected.GET("/stats", statsHandler.GetStats)
 
 		protected.POST("/media/upload", mediaHandler.Upload)
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { campaignApi, contactApi, deviceApi } from '../api/client'
+import { campaignApi, contactApi, deviceApi, statsApi } from '../api/client'
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -16,17 +16,16 @@ export default function Dashboard() {
 
   const loadStats = async () => {
     try {
-      const [contactsRes, campaignsRes, deviceRes] = await Promise.all([
-        contactApi.list(1, 1),
-        campaignApi.list(1, 1),
+      const [{ data: statsData }, { data: deviceData }] = await Promise.all([
+        statsApi.get(),
         deviceApi.getStatus(),
       ])
 
       setStats({
-        contacts: contactsRes.data.total || 0,
-        campaigns: campaignsRes.data.total || 0,
-        sent: campaignsRes.data.data?.reduce((sum, c) => sum + (c.success_count || 0), 0) || 0,
-        deviceConnected: deviceRes.data.status === 'connected',
+        contacts: statsData.contacts || 0,
+        campaigns: statsData.campaigns || 0,
+        sent: statsData.sent || 0,
+        deviceConnected: deviceData.status === 'connected',
       })
     } catch (e) {
       console.error(e)

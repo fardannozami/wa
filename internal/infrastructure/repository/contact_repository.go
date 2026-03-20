@@ -184,3 +184,9 @@ func (r *ContactRepository) SetGroups(contactID string, groupIDs []string) error
 	}
 	return r.db.Model(&domain.Contact{}).Where("id = ?", contactID).Association("Groups").Replace(groups)
 }
+
+func (r *ContactRepository) CountByTenantID(tenantID string) (int64, error) {
+	var count int64
+	err := r.db.Model(&domain.Contact{}).Where("tenant_id = ?", tenantID).Count(&count).Error
+	return count, err
+}
