@@ -53,11 +53,19 @@ export default function Campaigns() {
         try {
           const data = JSON.parse(event.data)
           if (data.type === 'campaign_update') {
-            setCampaigns(prev => prev.map(c => 
-              c.id === data.campaign_id 
-                ? { ...c, status: data.status, success_count: data.success_count, failed_count: data.failed_count }
-                : c
-            ))
+            if (data.message_id) {
+              // Individual message update
+              setMessages(prev => prev.map(m => 
+                m.id === data.message_id ? { ...m, status: data.status } : m
+              ))
+            } else {
+              // Campaign level update
+              setCampaigns(prev => prev.map(c => 
+                c.id === data.campaign_id 
+                  ? { ...c, status: data.status, success_count: data.success_count, failed_count: data.failed_count }
+                  : c
+              ))
+            }
           }
         } catch (e) {
           console.error('WS parse error:', e)
@@ -383,6 +391,25 @@ export default function Campaigns() {
       failed: 'status-disconnected',
     }
     return statusMap[status] || 'status-disconnected'
+  }
+
+  const getMessageStatus = (status) => {
+    if (status === 'failed') {
+      return <span className="status-badge status-disconnected">failed</span>
+    }
+    
+    return (
+      <div className="message-status">
+        <span className={`checkmark ${
+          status === 'read' ? 'checkmark-read' : 
+          status === 'delivered' ? 'checkmark-delivered' : 
+          'checkmark-sent'
+        }`} />
+        <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'capitalize' }}>
+          {status}
+        </span>
+      </div>
+    )
   }
 
   return (
@@ -840,9 +867,7 @@ export default function Campaigns() {
                             {msg.message}
                           </td>
                           <td>
-                            <span className={`status-badge ${msg.status === 'sent' ? 'status-completed' : msg.status === 'failed' ? 'status-disconnected' : 'status-running'}`}>
-                              {msg.status}
-                            </span>
+                            {getMessageStatus(msg.status)}
                           </td>
                           <td>
                             {msg.status === 'failed' && (

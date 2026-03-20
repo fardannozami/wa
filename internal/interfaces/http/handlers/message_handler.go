@@ -35,7 +35,7 @@ func (h *MessageHandler) Send(c *gin.Context) {
 		return
 	}
 
-	if err := h.waService.SendMessage(tenantID, req.Phone, req.Message, req.MediaURL); err != nil {
+	if _, err := h.waService.SendMessage(tenantID, req.Phone, req.Message, req.MediaURL); err != nil {
 		h.log.Error("Failed to send message", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

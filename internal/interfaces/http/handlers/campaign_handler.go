@@ -239,13 +239,12 @@ func (h *CampaignHandler) ResendMessage(c *gin.Context) {
 		return
 	}
 
-	if err := h.waService.SendMessage(tenantID, message.Phone, message.Message, message.ImageURL); err != nil {
+	whatsappID, err := h.waService.SendMessage(tenantID, message.Phone, message.Message, message.ImageURL)
+	if err != nil {
 		message.Status = domain.MessageStatusFailed
 		h.log.Error("Failed to resend message", "error", err, "phone", message.Phone)
 	} else {
-		message.Status = domain.MessageStatusSent
-		now := time.Now()
-		message.SentAt = &now
+		_ = h.messageRepo.MarkAsSent(message.ID, whatsappID)
 	}
 
 	h.messageRepo.Update(message)
@@ -366,12 +365,14 @@ func (h *CampaignHandler) processCampaignMessages(campaign *domain.Campaign, mes
 
 		time.Sleep(500 * time.Millisecond)
 
-		if err := h.waService.SendMessage(campaign.TenantID, msg.Phone, msg.Message, msg.ImageURL); err != nil {
+		whatsappID, sendErr := h.waService.SendMessage(campaign.TenantID, msg.Phone, msg.Message, msg.ImageURL)
+		if sendErr != nil {
 			msg.Status = domain.MessageStatusFailed
 			failedCount++
-			h.log.Error("Failed to send message", "error", err, "phone", msg.Phone)
+			h.log.Error("Failed to send message", "error", sendErr, "phone", msg.Phone)
+			_ = h.messageRepo.Update(&msg)
 		} else {
-			msg.Status = domain.MessageStatusSent
+			_ = h.messageRepo.MarkAsSent(msg.ID, whatsappID)
 			successCount++
 		}
 

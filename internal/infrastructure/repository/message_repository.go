@@ -56,7 +56,11 @@ func (r *MessageRepository) CountByCampaignID(campaignID string) (int64, int64, 
 		return 0, 0, 0, err
 	}
 
-	err = r.db.Model(&domain.Message{}).Where("campaign_id = ? AND status = ?", campaignID, domain.MessageStatusSent).Count(&success).Error
+	err = r.db.Model(&domain.Message{}).Where("campaign_id = ? AND status IN ?", campaignID, []domain.MessageStatus{
+		domain.MessageStatusSent,
+		domain.MessageStatusDelivered,
+		domain.MessageStatusRead,
+	}).Count(&success).Error
 	if err != nil {
 		return 0, 0, 0, err
 	}
@@ -67,15 +71,6 @@ func (r *MessageRepository) CountByCampaignID(campaignID string) (int64, int64, 
 	}
 
 	return total, success, failed, nil
-}
-
-func (r *MessageRepository) MarkAsSent(id string) error {
-	now := time.Now()
-	return r.db.Model(&domain.Message{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"status":     domain.MessageStatusSent,
-		"sent_at":    now,
-		"updated_at": now,
-	}).Error
 }
 
 func (r *MessageRepository) MarkAsFailed(id, errMsg string) error {
@@ -90,12 +85,57 @@ func (r *MessageRepository) MarkAsFailed(id, errMsg string) error {
 
 func (r *MessageRepository) CountAllSent() (int64, error) {
 	var count int64
-	err := r.db.Model(&domain.Message{}).Where("status = ?", domain.MessageStatusSent).Count(&count).Error
+	err := r.db.Model(&domain.Message{}).Where("status IN ?", []domain.MessageStatus{
+		domain.MessageStatusSent,
+		domain.MessageStatusDelivered,
+		domain.MessageStatusRead,
+	}).Count(&count).Error
 	return count, err
 }
 
 func (r *MessageRepository) CountSentByTenantID(tenantID string) (int64, error) {
 	var count int64
-	err := r.db.Model(&domain.Message{}).Where("tenant_id = ? AND status = ?", tenantID, domain.MessageStatusSent).Count(&count).Error
+	err := r.db.Model(&domain.Message{}).Where("tenant_id = ? AND status IN ?", tenantID, []domain.MessageStatus{
+		domain.MessageStatusSent,
+		domain.MessageStatusDelivered,
+		domain.MessageStatusRead,
+	}).Count(&count).Error
 	return count, err
+}
+
+func (r *MessageRepository) FindByWhatsAppID(whatsappID string) (*domain.Message, error) {
+	var message domain.Message
+	err := r.db.First(&message, "whatsapp_id = ?", whatsappID).Error
+	if err != nil {
+		return nil, err
+	}
+	return &message, nil
+}
+
+func (r *MessageRepository) MarkAsSent(id, whatsappID string) error {
+	now := time.Now()
+	return r.db.Model(&domain.Message{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"status":      domain.MessageStatusSent,
+		"whatsapp_id": whatsappID,
+		"sent_at":     &now,
+		"updated_at":  now,
+	}).Error
+}
+
+func (r *MessageRepository) MarkAsDelivered(whatsappID string) error {
+	now := time.Now()
+	return r.db.Model(&domain.Message{}).Where("whatsapp_id = ?", whatsappID).Updates(map[string]interface{}{
+		"status":       domain.MessageStatusDelivered,
+		"delivered_at": &now,
+		"updated_at":   now,
+	}).Error
+}
+
+func (r *MessageRepository) MarkAsRead(whatsappID string) error {
+	now := time.Now()
+	return r.db.Model(&domain.Message{}).Where("whatsapp_id = ?", whatsappID).Updates(map[string]interface{}{
+		"status":     domain.MessageStatusRead,
+		"read_at":    &now,
+		"updated_at": now,
+	}).Error
 }

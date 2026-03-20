@@ -40,7 +40,7 @@ type WAService interface {
 	GetStatus(tenantID string) (domain.DeviceStatus, string, error)
 	Connect(tenantID string) error
 	Disconnect(tenantID string) error
-	SendMessage(tenantID, phone, message, mediaURL string) error
+	SendMessage(tenantID, phone, message, mediaURL string) (string, error)
 	SendTypingIndicator(tenantID, phone string)
 	HandleQRWebSocket(tenantID string, w http.ResponseWriter, r *http.Request)
 	PushCampaignUpdate(tenantID string, data map[string]interface{})
@@ -53,6 +53,7 @@ type WhatsAppService struct {
 	deviceRepo  domain.DeviceRepository
 	contactRepo domain.ContactRepository
 	groupRepo   domain.GroupRepository
+	messageRepo domain.MessageRepository
 	sessionDir  string
 
 	mu      sync.RWMutex
@@ -70,11 +71,12 @@ type WhatsMeowClient struct {
 	Phone    string
 }
 
-func NewWhatsAppService(deviceRepo domain.DeviceRepository, contactRepo domain.ContactRepository, groupRepo domain.GroupRepository, sessionDir string) *WhatsAppService {
+func NewWhatsAppService(deviceRepo domain.DeviceRepository, contactRepo domain.ContactRepository, groupRepo domain.GroupRepository, messageRepo domain.MessageRepository, sessionDir string) *WhatsAppService {
 	return &WhatsAppService{
 		deviceRepo:  deviceRepo,
 		contactRepo: contactRepo,
 		groupRepo:   groupRepo,
+		messageRepo: messageRepo,
 		sessionDir:  sessionDir,
 		clients:     make(map[string]*WhatsMeowClient),
 		wsConns:     make(map[string]*websocket.Conn),
@@ -253,6 +255,26 @@ func (s *WhatsAppService) handleEvent(tenantID string, evt interface{}) {
 			"type":   "logged_out",
 			"status": domain.DeviceStatusDisconnected,
 		})
+	case *events.Receipt:
+		for _, msgID := range v.MessageIDs {
+			msg, err := s.messageRepo.FindByWhatsAppID(string(msgID))
+			if err != nil {
+				continue
+			}
+
+			if v.Type == events.ReceiptTypeDelivered {
+				_ = s.messageRepo.MarkAsDelivered(string(msgID))
+			} else if v.Type == events.ReceiptTypeRead || v.Type == events.ReceiptTypeReadSelf {
+				_ = s.messageRepo.MarkAsRead(string(msgID))
+			}
+
+			// Push update to frontend
+			s.PushCampaignUpdate(tenantID, map[string]interface{}{
+				"campaign_id": msg.CampaignID,
+				"message_id":  msg.ID,
+				"status":      msg.Status,
+			})
+		}
 	}
 }
 
@@ -396,7 +418,7 @@ func (s *WhatsAppService) Disconnect(tenantID string) error {
 	return s.deviceRepo.Update(device)
 }
 
-func (s *WhatsAppService) SendMessage(tenantID, phone, message, mediaURL string) error {
+func (s *WhatsAppService) SendMessage(tenantID, phone, message, mediaURL string) (string, error) {
 	fmt.Printf("[WhatsMeow] SendMessage called: tenant=%s, phone=%s, message=%s, mediaURL=%s\n", tenantID, phone, message, mediaURL)
 
 	s.mu.RLock()
@@ -407,7 +429,7 @@ func (s *WhatsAppService) SendMessage(tenantID, phone, message, mediaURL string)
 		fmt.Printf("[WhatsMeow] Client not connected, attempting to reconnect for tenant %s\n", tenantID)
 		if err := s.Connect(tenantID); err != nil {
 			fmt.Printf("[WhatsMeow] Reconnect failed: %v\n", err)
-			return fmt.Errorf("device not connected: %w", err)
+			return "", fmt.Errorf("device not connected: %w", err)
 		}
 
 		s.mu.RLock()
@@ -415,7 +437,7 @@ func (s *WhatsAppService) SendMessage(tenantID, phone, message, mediaURL string)
 		s.mu.RUnlock()
 
 		if !exists || client == nil {
-			return fmt.Errorf("failed to reconnect")
+			return "", fmt.Errorf("failed to reconnect")
 		}
 	}
 
@@ -434,12 +456,12 @@ func (s *WhatsAppService) SendMessage(tenantID, phone, message, mediaURL string)
 		if strings.HasPrefix(mediaURL, "http") {
 			resp, err := http.Get(mediaURL)
 			if err != nil {
-				return fmt.Errorf("failed to download image: %w", err)
+				return "", fmt.Errorf("failed to download image: %w", err)
 			}
 			defer resp.Body.Close()
 			imageData, err = io.ReadAll(resp.Body)
 			if err != nil {
-				return fmt.Errorf("failed to read downloaded image: %w", err)
+				return "", fmt.Errorf("failed to read downloaded image: %w", err)
 			}
 		} else {
 			// Assume it's a local file path relative to project root
@@ -447,7 +469,7 @@ func (s *WhatsAppService) SendMessage(tenantID, phone, message, mediaURL string)
 			path := strings.TrimPrefix(mediaURL, "/")
 			imageData, err = os.ReadFile(path)
 			if err != nil {
-				return fmt.Errorf("failed to read local image file: %w", err)
+				return "", fmt.Errorf("failed to read local image file: %w", err)
 			}
 		}
 
@@ -457,7 +479,7 @@ func (s *WhatsAppService) SendMessage(tenantID, phone, message, mediaURL string)
 		// Upload to WA
 		uploadResp, err := client.Client.Upload(context.Background(), imageData, whatsmeow.MediaImage)
 		if err != nil {
-			return fmt.Errorf("failed to upload image to WhatsApp: %w", err)
+			return "", fmt.Errorf("failed to upload image to WhatsApp: %w", err)
 		}
 
 		waMsg.ImageMessage = &waE2E.ImageMessage{
@@ -477,11 +499,11 @@ func (s *WhatsAppService) SendMessage(tenantID, phone, message, mediaURL string)
 	resp, err := client.Client.SendMessage(context.Background(), jid, &waMsg)
 	if err != nil {
 		fmt.Printf("[WhatsMeow] SendMessage error: %v\n", err)
-		return fmt.Errorf("failed to send message: %w", err)
+		return "", fmt.Errorf("failed to send message: %w", err)
 	}
 
 	fmt.Printf("[WhatsMeow] Message sent to %s (ID: %s)\n", phone, resp.ID)
-	return nil
+	return string(resp.ID), nil
 }
 
 func (s *WhatsAppService) SendTypingIndicator(tenantID, phone string) {

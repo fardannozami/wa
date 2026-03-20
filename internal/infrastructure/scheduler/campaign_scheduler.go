@@ -87,18 +87,17 @@ func (s *CampaignScheduler) runCampaign(campaign *domain.Campaign) {
 		s.waService.SendTypingIndicator(campaign.TenantID, msg.Phone)
 		time.Sleep(2 * time.Second)
 
-		if err := s.waService.SendMessage(campaign.TenantID, msg.Phone, msg.Message, msg.ImageURL); err != nil {
+		whatsappID, sendErr := s.waService.SendMessage(campaign.TenantID, msg.Phone, msg.Message, msg.ImageURL)
+		if sendErr != nil {
 			msg.Status = domain.MessageStatusFailed
+			msg.Error = sendErr.Error()
 			failedCount++
-			fmt.Printf("[Scheduler] Failed to send to %s: %v\n", msg.Phone, err)
+			fmt.Printf("[Scheduler] Failed to send to %s: %v\n", msg.Phone, sendErr)
+			_ = s.messageRepo.Update(&msg)
 		} else {
-			msg.Status = domain.MessageStatusSent
 			successCount++
+			_ = s.messageRepo.MarkAsSent(msg.ID, whatsappID)
 		}
-
-		now := time.Now()
-		msg.SentAt = &now
-		s.messageRepo.Update(&msg)
 
 		campaign.SuccessCount = successCount
 		campaign.FailedCount = failedCount
