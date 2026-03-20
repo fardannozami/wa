@@ -57,9 +57,13 @@ func main() {
 	campaignHandler := handlers.NewCampaignHandler(campaignRepo, contactRepo, messageRepo, log)
 	campaignHandler.SetWAService(waService)
 	adminHandler := handlers.NewAdminHandler(userRepo, messageRepo, log)
+	mediaHandler := handlers.NewMediaHandler(log)
 
 	router := gin.Default()
 	router.Use(middleware.CORS())
+
+	// Static files
+	router.Static("/uploads", "./uploads")
 
 	api := router.Group("/api/v1")
 	{
@@ -105,6 +109,8 @@ func main() {
 		protected.GET("/campaigns/:id/messages", campaignHandler.GetMessages)
 		protected.POST("/messages/:messageID/resend", campaignHandler.ResendMessage)
 		protected.DELETE("/campaigns/:id", campaignHandler.Delete)
+
+		protected.POST("/media/upload", mediaHandler.Upload)
 
 		// Admin routes
 		admin := protected.Group("/admin")

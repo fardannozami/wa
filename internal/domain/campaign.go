@@ -25,6 +25,7 @@ type Campaign struct {
 	TotalCount   int            `json:"total_count" gorm:"default:0"`
 	SuccessCount int            `json:"success_count" gorm:"default:0"`
 	FailedCount  int            `json:"failed_count" gorm:"default:0"`
+	ImageURL     string         `json:"image_url" gorm:"type:text"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 }

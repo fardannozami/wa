@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import toast from 'react-hot-toast'
-import { campaignApi, contactApi, deviceApi, groupApi } from '../api/client'
+import { campaignApi, contactApi, deviceApi, groupApi, mediaApi } from '../api/client'
 
 export default function Campaigns() {
   const [campaigns, setCampaigns] = useState([])
@@ -22,7 +22,8 @@ export default function Campaigns() {
   const [deviceStatus, setDeviceStatus] = useState('disconnected')
   const [contacts, setContacts] = useState([])
   const [selectedContacts, setSelectedContacts] = useState([])
-  const [formData, setFormData] = useState({ name: '', template: '' })
+  const [formData, setFormData] = useState({ name: '', template: '', image_url: '' })
+  const [uploading, setUploading] = useState(false)
   const [groups, setGroups] = useState([])
   const [selectedGroupId, setSelectedGroupId] = useState('')
   const [selectMode, setSelectMode] = useState('group')
@@ -206,6 +207,25 @@ export default function Campaigns() {
     }
   }
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await mediaApi.upload(formData)
+      setFormData(prev => ({ ...prev, image_url: data.url }))
+      toast.success('Image uploaded')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to upload image')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const insertPlaceholder = (tag) => {
     const textarea = templateRef.current
     if (!textarea) return
@@ -230,7 +250,7 @@ export default function Campaigns() {
   const openModal = async () => {
     await loadGroups()
     setEditingCampaign(null)
-    setFormData({ name: '', template: '' })
+    setFormData({ name: '', template: '', image_url: '' })
     setSelectedContacts([])
     setSelectedGroupId('')
     setSelectMode('group')
@@ -254,7 +274,7 @@ export default function Campaigns() {
       }
       setShowModal(false)
       setEditingCampaign(null)
-      setFormData({ name: '', template: '' })
+      setFormData({ name: '', template: '', image_url: '' })
       setSelectedContacts([])
       toast.success(editingCampaign ? 'Campaign updated' : 'Campaign created')
       loadCampaigns()
@@ -267,7 +287,11 @@ export default function Campaigns() {
     try {
       await loadGroups()
       setEditingCampaign(campaign)
-      setFormData({ name: campaign.name, template: campaign.template || '' })
+      setFormData({ 
+        name: campaign.name, 
+        template: campaign.template || '',
+        image_url: campaign.image_url || ''
+      })
       setSelectedContacts([])
       setSelectedGroupId('')
       setSelectMode('manual')
@@ -382,6 +406,7 @@ export default function Campaigns() {
             <table className="table">
               <thead>
                 <tr>
+                  <th>Image</th>
                   <th>Name</th>
                   <th>Status</th>
                   <th>Total</th>
@@ -394,6 +419,19 @@ export default function Campaigns() {
               <tbody>
                 {campaigns.map((campaign) => (
                   <tr key={campaign.id}>
+                    <td>
+                      {campaign.image_url ? (
+                        <img 
+                          src={campaign.image_url} 
+                          alt="Campaign" 
+                          style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} 
+                        />
+                      ) : (
+                        <div style={{ width: '40px', height: '40px', background: '#f3f4f6', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#9ca3af' }}>
+                          No Img
+                        </div>
+                      )}
+                    </td>
                     <td>{campaign.name}</td>
                     <td>
                       <span className={`status-badge ${getStatusBadge(campaign.status)}`}>
@@ -537,6 +575,53 @@ export default function Campaigns() {
                     required
                   />
                   <small style={{ color: '#666' }}>Use {"{{prefix}}"} and {"{{name}}"} to personalize messages</small>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Campaign Image (Optional)</label>
+                  <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                    {formData.image_url && (
+                      <div style={{ position: 'relative' }}>
+                        <img 
+                          src={formData.image_url} 
+                          alt="Preview" 
+                          style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e0e0e0' }} 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, image_url: '' })}
+                          style={{
+                            position: 'absolute',
+                            top: '-8px',
+                            right: '-8px',
+                            background: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '20px',
+                            height: '20px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        disabled={uploading}
+                        className="form-input"
+                        style={{ padding: '8px' }}
+                      />
+                      {uploading && <small style={{ color: '#3b82f6' }}>Uploading...</small>}
+                    </div>
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Select Contacts</label>
@@ -714,11 +799,20 @@ export default function Campaigns() {
               <button onClick={() => setShowDetailModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
             <div className="modal-body">
-              <div style={{ marginBottom: '15px' }}>
-                <strong>Status:</strong> {detailCampaign.status}<br />
-                <strong>Total:</strong> {detailCampaign.total_count || 0} | 
-                <strong> Success:</strong> {detailCampaign.success_count || 0} | 
-                <strong> Failed:</strong> {detailCampaign.failed_count || 0}
+              <div style={{ marginBottom: '15px', display: 'flex', gap: '20px' }}>
+                {detailCampaign.image_url && (
+                  <img 
+                    src={detailCampaign.image_url} 
+                    alt="Campaign" 
+                    style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px' }} 
+                  />
+                )}
+                <div>
+                  <strong>Status:</strong> {detailCampaign.status}<br />
+                  <strong>Total:</strong> {detailCampaign.total_count || 0}<br />
+                  <strong>Success:</strong> {detailCampaign.success_count || 0}<br />
+                  <strong>Failed:</strong> {detailCampaign.failed_count || 0}
+                </div>
               </div>
               
               {loadingMessages ? (

@@ -25,6 +25,7 @@ type Message struct {
 	DeliveredAt *time.Time    `json:"delivered_at"`
 	Error       string        `json:"error" gorm:"type:text"`
 	RetryCount  int           `json:"retry_count" gorm:"default:0"`
+	ImageURL    string        `json:"image_url" gorm:"type:text"`
 	CreatedAt   time.Time     `json:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at"`
 }

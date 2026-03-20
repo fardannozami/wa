@@ -21,8 +21,9 @@ func NewMessageHandler(waService whatsapp.WAService, log *logger.Logger) *Messag
 }
 
 type SendMessageRequest struct {
-	Phone   string `json:"phone" binding:"required"`
-	Message string `json:"message" binding:"required"`
+	Phone    string `json:"phone" binding:"required"`
+	Message  string `json:"message" binding:"required"`
+	MediaURL string `json:"media_url"`
 }
 
 func (h *MessageHandler) Send(c *gin.Context) {
@@ -34,7 +35,7 @@ func (h *MessageHandler) Send(c *gin.Context) {
 		return
 	}
 
-	if err := h.waService.SendMessage(tenantID, req.Phone, req.Message); err != nil {
+	if err := h.waService.SendMessage(tenantID, req.Phone, req.Message, req.MediaURL); err != nil {
 		h.log.Error("Failed to send message", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

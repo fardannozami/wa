@@ -74,6 +74,12 @@ export const campaignApi = {
   delete: (id) => api.delete(`/campaigns/${id}`),
 }
 
+export const mediaApi = {
+  upload: (formData) => api.post('/media/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+}
+
 export const adminApi = {
   getStats: () => api.get('/admin/stats'),
   listUsers: () => api.get('/admin/users'),

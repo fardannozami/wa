@@ -72,6 +72,7 @@ func (h *CampaignHandler) Create(c *gin.Context) {
 		Template    string   `json:"template" binding:"required"`
 		ContactIDs  []string `json:"contact_ids"`
 		ScheduledAt *string  `json:"scheduled_at"`
+		ImageURL    string   `json:"image_url"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -84,6 +85,7 @@ func (h *CampaignHandler) Create(c *gin.Context) {
 		TenantID: tenantID,
 		Name:     input.Name,
 		Template: input.Template,
+		ImageURL: input.ImageURL,
 		Status:   domain.CampaignStatusDraft,
 	}
 
@@ -125,6 +127,7 @@ func (h *CampaignHandler) Update(c *gin.Context) {
 		Template    string   `json:"template"`
 		ContactIDs  []string `json:"contact_ids"`
 		ScheduledAt *string  `json:"scheduled_at"`
+		ImageURL    string   `json:"image_url"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -137,6 +140,9 @@ func (h *CampaignHandler) Update(c *gin.Context) {
 	}
 	if input.Template != "" {
 		campaign.Template = input.Template
+	}
+	if input.ImageURL != "" {
+		campaign.ImageURL = input.ImageURL
 	}
 
 	if input.ScheduledAt != nil {
@@ -233,7 +239,7 @@ func (h *CampaignHandler) ResendMessage(c *gin.Context) {
 		return
 	}
 
-	if err := h.waService.SendMessage(tenantID, message.Phone, message.Message); err != nil {
+	if err := h.waService.SendMessage(tenantID, message.Phone, message.Message, message.ImageURL); err != nil {
 		message.Status = domain.MessageStatusFailed
 		h.log.Error("Failed to resend message", "error", err, "phone", message.Phone)
 	} else {
@@ -360,7 +366,7 @@ func (h *CampaignHandler) processCampaignMessages(campaign *domain.Campaign, mes
 
 		time.Sleep(500 * time.Millisecond)
 
-		if err := h.waService.SendMessage(campaign.TenantID, msg.Phone, msg.Message); err != nil {
+		if err := h.waService.SendMessage(campaign.TenantID, msg.Phone, msg.Message, msg.ImageURL); err != nil {
 			msg.Status = domain.MessageStatusFailed
 			failedCount++
 			h.log.Error("Failed to send message", "error", err, "phone", msg.Phone)
@@ -413,6 +419,7 @@ func (h *CampaignHandler) createMessagesForCampaign(campaign *domain.Campaign, c
 			TenantID:   campaign.TenantID,
 			Phone:      contact.Phone,
 			Message:    message,
+			ImageURL:   campaign.ImageURL,
 			Status:     domain.MessageStatusPending,
 		})
 	}

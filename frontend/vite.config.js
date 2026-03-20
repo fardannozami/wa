@@ -11,6 +11,10 @@ export default defineConfig({
         target: process.env.API_URL || 'http://localhost:8080',
         changeOrigin: true,
         ws: true
+      },
+      '/uploads': {
+        target: process.env.API_URL || 'http://localhost:8080',
+        changeOrigin: true
       }
     }
   }

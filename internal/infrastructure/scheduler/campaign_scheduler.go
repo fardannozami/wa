@@ -83,7 +83,7 @@ func (s *CampaignScheduler) runCampaign(campaign *domain.Campaign) {
 	failedCount := 0
 
 	for i, msg := range messages {
-		if err := s.waService.SendMessage(campaign.TenantID, msg.Phone, msg.Message); err != nil {
+		if err := s.waService.SendMessage(campaign.TenantID, msg.Phone, msg.Message, msg.ImageURL); err != nil {
 			msg.Status = domain.MessageStatusFailed
 			failedCount++
 			fmt.Printf("[Scheduler] Failed to send to %s: %v\n", msg.Phone, err)

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -39,7 +40,7 @@ type WAService interface {
 	GetStatus(tenantID string) (domain.DeviceStatus, string, error)
 	Connect(tenantID string) error
 	Disconnect(tenantID string) error
-	SendMessage(tenantID, phone, message string) error
+	SendMessage(tenantID, phone, message, mediaURL string) error
 	SendTypingIndicator(tenantID, phone string)
 	HandleQRWebSocket(tenantID string, w http.ResponseWriter, r *http.Request)
 	PushCampaignUpdate(tenantID string, data map[string]interface{})
@@ -395,8 +396,8 @@ func (s *WhatsAppService) Disconnect(tenantID string) error {
 	return s.deviceRepo.Update(device)
 }
 
-func (s *WhatsAppService) SendMessage(tenantID, phone, message string) error {
-	fmt.Printf("[WhatsMeow] SendMessage called: tenant=%s, phone=%s, message=%s\n", tenantID, phone, message)
+func (s *WhatsAppService) SendMessage(tenantID, phone, message, mediaURL string) error {
+	fmt.Printf("[WhatsMeow] SendMessage called: tenant=%s, phone=%s, message=%s, mediaURL=%s\n", tenantID, phone, message, mediaURL)
 
 	s.mu.RLock()
 	client, exists := s.clients[tenantID]
@@ -421,15 +422,65 @@ func (s *WhatsAppService) SendMessage(tenantID, phone, message string) error {
 	jid := types.NewJID(phone, "s.whatsapp.net")
 	fmt.Printf("[WhatsMeow] Sending to JID: %s\n", jid.String())
 
-	resp, err := client.Client.SendMessage(context.Background(), jid, &waE2E.Message{
-		Conversation: proto.String(message),
-	})
+	var waMsg waE2E.Message
+
+	if mediaURL != "" {
+		fmt.Printf("[WhatsMeow] Handling media message: %s\n", mediaURL)
+		
+		var imageData []byte
+		var err error
+		
+		// Handle both local paths and URLs
+		if strings.HasPrefix(mediaURL, "http") {
+			resp, err := http.Get(mediaURL)
+			if err != nil {
+				return fmt.Errorf("failed to download image: %w", err)
+			}
+			defer resp.Body.Close()
+			imageData, err = io.ReadAll(resp.Body)
+			if err != nil {
+				return fmt.Errorf("failed to read downloaded image: %w", err)
+			}
+		} else {
+			// Assume it's a local file path relative to project root
+			// Strip leading slash if present
+			path := strings.TrimPrefix(mediaURL, "/")
+			imageData, err = os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("failed to read local image file: %w", err)
+			}
+		}
+
+		// Determine mimetype
+		mimetype := http.DetectContentType(imageData)
+		
+		// Upload to WA
+		uploadResp, err := client.Client.Upload(context.Background(), imageData, whatsmeow.MediaImage)
+		if err != nil {
+			return fmt.Errorf("failed to upload image to WhatsApp: %w", err)
+		}
+
+		waMsg.ImageMessage = &waE2E.ImageMessage{
+			Caption:       proto.String(message),
+			Mimetype:      proto.String(mimetype),
+			URL:           proto.String(uploadResp.URL),
+			DirectPath:    proto.String(uploadResp.DirectPath),
+			MediaKey:      uploadResp.MediaKey,
+			FileEncSHA256: uploadResp.FileEncSHA256,
+			FileSHA256:    uploadResp.FileSHA256,
+			FileLength:    proto.Uint64(uint64(len(imageData))),
+		}
+	} else {
+		waMsg.Conversation = proto.String(message)
+	}
+
+	resp, err := client.Client.SendMessage(context.Background(), jid, &waMsg)
 	if err != nil {
 		fmt.Printf("[WhatsMeow] SendMessage error: %v\n", err)
 		return fmt.Errorf("failed to send message: %w", err)
 	}
 
-	fmt.Printf("[WhatsMeow] Message sent to %s: %s (ID: %s)\n", phone, message, resp.ID)
+	fmt.Printf("[WhatsMeow] Message sent to %s (ID: %s)\n", phone, resp.ID)
 	return nil
 }
 
