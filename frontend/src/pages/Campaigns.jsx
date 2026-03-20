@@ -432,7 +432,9 @@ export default function Campaigns() {
                         </div>
                       )}
                     </td>
-                    <td>{campaign.name}</td>
+                    <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={campaign.name}>
+                      {campaign.name}
+                    </td>
                     <td>
                       <span className={`status-badge ${getStatusBadge(campaign.status)}`}>
                         {campaign.status}

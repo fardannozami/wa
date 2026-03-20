@@ -54,7 +54,7 @@ export default function Contacts() {
   const handleSendMessage = async (e) => {
     e.preventDefault()
     if (!selectedContact) return
-    
+
     setSending(true)
     try {
       await messageApi.send(selectedContact.phone, messageText)
@@ -167,7 +167,7 @@ export default function Contacts() {
     try {
       const { data } = await deviceApi.importGroup(group.jid)
       const count = data.data?.imported_count || 0
-      
+
       toast.success(`Imported ${count} contacts from ${group.name}`)
       setShowWhatsappModal(false)
       loadContacts()
@@ -184,13 +184,13 @@ export default function Contacts() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <span>Delete this group?</span>
         <div style={{ display: 'flex', gap: '5px' }}>
-          <button 
+          <button
             onClick={() => { toast.dismiss(t.id); deleteGroup(id) }}
             style={{ background: '#dc2626', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
           >
             Delete
           </button>
-          <button 
+          <button
             onClick={() => toast.dismiss(t.id)}
             style={{ background: '#6b7280', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
           >
@@ -220,13 +220,13 @@ export default function Contacts() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <span>Delete this contact?</span>
         <div style={{ display: 'flex', gap: '5px' }}>
-          <button 
+          <button
             onClick={() => { toast.dismiss(t.id); deleteContact(id) }}
             style={{ background: '#dc2626', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
           >
             Delete
           </button>
-          <button 
+          <button
             onClick={() => toast.dismiss(t.id)}
             style={{ background: '#6b7280', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
           >
@@ -251,10 +251,10 @@ export default function Contacts() {
   const handleImport = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    
+
     const formData = new FormData()
     formData.append('file', file)
-    
+
     try {
       const { data } = await contactApi.import(formData)
       loadContacts()
@@ -269,7 +269,7 @@ export default function Contacts() {
     try {
       const { data } = await contactApi.list(1, 10000)
       const contacts = data.data || []
-      
+
       const csvContent = [
         ['Name', 'Phone', 'Prefix', 'Groups'].join(','),
         ...contacts.map(c => [
@@ -334,8 +334,8 @@ export default function Contacts() {
       <div className="card">
         <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ fontWeight: '500' }}>Filter by Group:</div>
-          <select 
-            value={selectedGroup} 
+          <select
+            value={selectedGroup}
             onChange={(e) => { setSelectedGroup(e.target.value); setPage(1) }}
             className="form-input"
             style={{ width: 'auto', padding: '6px 12px' }}
@@ -372,9 +372,13 @@ export default function Contacts() {
                 {contacts.map((contact) => (
                   <tr key={contact.id}>
                     <td>{contact.prefix || '-'}</td>
-                    <td>{contact.name}</td>
+                    <td style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={contact.name}>
+                      {contact.name}
+                    </td>
                     <td>{contact.phone}</td>
-                    <td>{contact.groups && contact.groups.length > 0 ? contact.groups.map(g => g.name).join(', ') : '-'}</td>
+                    <td style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={contact.groups && contact.groups.length > 0 ? contact.groups.map(g => g.name).join(', ') : ''}>
+                      {contact.groups && contact.groups.length > 0 ? contact.groups.map(g => g.name).join(', ') : '-'}
+                    </td>
                     <td>
                       <button onClick={() => openMessageModal(contact)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px', marginRight: '8px' }} disabled={deviceStatus !== 'connected' && deviceStatus !== 'active'}>
                         Send
@@ -415,7 +419,7 @@ export default function Contacts() {
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
-                                <div className="form-group">
+                <div className="form-group">
                   <label className="form-label">Prefix</label>
                   <select
                     className="form-input"
@@ -424,6 +428,8 @@ export default function Contacts() {
                   >
                     <option value="">-</option>
                     <option value="Pak">Pak</option>
+                    <option value="Mas">Mas</option>
+                    <option value="Mbak">Mbak</option>
                     <option value="Bu">Bu</option>
                     <option value="Bapak">Bapak</option>
                     <option value="Ibu">Ibu</option>
@@ -458,55 +464,55 @@ export default function Contacts() {
                 <div className="form-group">
                   <label className="form-label">Groups (select multiple)</label>
                   <div style={{ marginBottom: '10px' }}>
-                    <input 
-                      type="text" 
-                      placeholder="Search groups..." 
-                      className="form-input" 
+                    <input
+                      type="text"
+                      placeholder="Search groups..."
+                      className="form-input"
                       style={{ padding: '6px 12px', fontSize: '12px' }}
                       value={groupSearch}
                       onChange={(e) => setGroupSearch(e.target.value)}
                     />
                   </div>
-                  <div style={{ 
-                    maxHeight: '260px', 
-                    overflowY: 'auto', 
-                    border: '1px solid #e2e8f0', 
-                    borderRadius: '8px', 
+                  <div style={{
+                    maxHeight: '260px',
+                    overflowY: 'auto',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
                     padding: '8px 4px',
                     background: '#f8fafc'
                   }}>
                     {groups
                       .filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase()))
                       .map(group => (
-                      <label 
-                        key={group.id} 
-                        style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '10px', 
-                          padding: '8px 12px',
-                          cursor: 'pointer',
-                          borderRadius: '6px',
-                          transition: 'background 0.2s ease'
-                        }}
-                        className="group-list-item"
-                        onMouseEnter={(e) => e.target.style.background = '#f1f5f9'}
-                        onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.group_ids.includes(group.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({ ...formData, group_ids: [...formData.group_ids, group.id] })
-                            } else {
-                              setFormData({ ...formData, group_ids: formData.group_ids.filter(id => id !== group.id) })
-                            }
+                        <label
+                          key={group.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            borderRadius: '6px',
+                            transition: 'background 0.2s ease'
                           }}
-                        />
-                        <span style={{ fontSize: '13px', fontWeight: '500' }}>{group.name}</span>
-                      </label>
-                    ))}
+                          className="group-list-item"
+                          onMouseEnter={(e) => e.target.style.background = '#f1f5f9'}
+                          onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={formData.group_ids.includes(group.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({ ...formData, group_ids: [...formData.group_ids, group.id] })
+                              } else {
+                                setFormData({ ...formData, group_ids: formData.group_ids.filter(id => id !== group.id) })
+                              }
+                            }}
+                          />
+                          <span style={{ fontSize: '13px', fontWeight: '500' }}>{group.name}</span>
+                        </label>
+                      ))}
                     {groups.length === 0 && <div style={{ color: '#666', padding: '10px', textAlign: 'center' }}>No groups available</div>}
                     {groups.length > 0 && groups.filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase())).length === 0 && (
                       <div style={{ color: '#666', padding: '10px', textAlign: 'center' }}>No groups matching "{groupSearch}"</div>
