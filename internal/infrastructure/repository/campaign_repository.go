@@ -62,6 +62,27 @@ func (r *CampaignRepository) FindScheduled() ([]domain.Campaign, error) {
 	return campaigns, err
 }
 
+func (r *CampaignRepository) UpdateStatusAtomic(id string, oldStatuses []domain.CampaignStatus, newStatus domain.CampaignStatus) (bool, error) {
+	updates := map[string]interface{}{
+		"status": newStatus,
+	}
+	if newStatus == domain.CampaignStatusRunning {
+		updates["scheduled_at"] = nil
+		now := time.Now()
+		updates["started_at"] = &now
+	}
+
+	result := r.db.Model(&domain.Campaign{}).
+		Where("id = ? AND status IN ?", id, oldStatuses).
+		Updates(updates)
+
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	return result.RowsAffected > 0, nil
+}
+
 func (r *CampaignRepository) CountByTenantID(tenantID string) (int64, error) {
 	var count int64
 	err := r.db.Model(&domain.Campaign{}).Where("tenant_id = ?", tenantID).Count(&count).Error

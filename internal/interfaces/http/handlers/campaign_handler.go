@@ -324,8 +324,17 @@ func (h *CampaignHandler) Send(c *gin.Context) {
 		return
 	}
 
-	campaign.Status = domain.CampaignStatusRunning
-	h.campaignRepo.Update(campaign)
+	updated, err := h.campaignRepo.UpdateStatusAtomic(campaignID, []domain.CampaignStatus{domain.CampaignStatusDraft, domain.CampaignStatusScheduled}, domain.CampaignStatusRunning)
+	if err != nil {
+		h.log.Error("Failed to update campaign status", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update campaign status"})
+		return
+	}
+
+	if !updated {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Campaign cannot be started (already running or cancelled)"})
+		return
+	}
 
 	go func() {
 		h.processCampaignMessages(campaign, messages)
@@ -335,9 +344,6 @@ func (h *CampaignHandler) Send(c *gin.Context) {
 }
 
 func (h *CampaignHandler) processCampaignMessages(campaign *domain.Campaign, messages []domain.Message) {
-	campaign.Status = domain.CampaignStatusRunning
-	h.campaignRepo.Update(campaign)
-
 	h.waService.PushCampaignUpdate(campaign.TenantID, map[string]interface{}{
 		"campaign_id":   campaign.ID,
 		"status":        "running",

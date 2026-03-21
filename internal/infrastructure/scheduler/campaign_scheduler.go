@@ -57,8 +57,21 @@ func (s *CampaignScheduler) processScheduledCampaigns() {
 
 	for _, campaign := range campaigns {
 		if campaign.ScheduledAt != nil && time.Now().After(*campaign.ScheduledAt) {
-			fmt.Printf("[Scheduler] Running scheduled campaign: %s\n", campaign.ID)
-			s.runCampaign(&campaign)
+			fmt.Printf("[Scheduler] Attempting to run scheduled campaign: %s\n", campaign.ID)
+			
+			// Atomically move from Scheduled to Running
+			updated, err := s.campaignRepo.UpdateStatusAtomic(campaign.ID, []domain.CampaignStatus{domain.CampaignStatusScheduled}, domain.CampaignStatusRunning)
+			if err != nil {
+				fmt.Printf("[Scheduler] Error updating campaign status: %v\n", err)
+				continue
+			}
+			
+			if updated {
+				fmt.Printf("[Scheduler] Running scheduled campaign: %s\n", campaign.ID)
+				s.runCampaign(&campaign)
+			} else {
+				fmt.Printf("[Scheduler] Campaign %s already started or cancelled, skipping\n", campaign.ID)
+			}
 		}
 	}
 }
@@ -69,9 +82,6 @@ func (s *CampaignScheduler) runCampaign(campaign *domain.Campaign) {
 		fmt.Printf("[Scheduler] No messages found for campaign: %s\n", campaign.ID)
 		return
 	}
-
-	campaign.Status = domain.CampaignStatusRunning
-	s.campaignRepo.Update(campaign)
 
 	s.waService.PushCampaignUpdate(campaign.TenantID, map[string]interface{}{
 		"campaign_id":   campaign.ID,

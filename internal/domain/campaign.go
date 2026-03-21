@@ -35,6 +35,7 @@ type CampaignRepository interface {
 	FindByTenantID(tenantID string, page, limit int) ([]Campaign, int64, error)
 	FindByID(id string) (*Campaign, error)
 	Update(campaign *Campaign) error
+	UpdateStatusAtomic(id string, oldStatuses []CampaignStatus, newStatus CampaignStatus) (bool, error)
 	Delete(id string) error
 	FindScheduled() ([]Campaign, error)
 	CountByTenantID(tenantID string) (int64, error)
