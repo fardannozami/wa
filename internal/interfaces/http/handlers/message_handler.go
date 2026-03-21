@@ -4,19 +4,23 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/wa-saas/internal/domain"
 	"github.com/wa-saas/internal/infrastructure/whatsapp"
 	"github.com/wa-saas/pkg/logger"
 )
 
 type MessageHandler struct {
-	waService whatsapp.WAService
-	log       *logger.Logger
+	waService   whatsapp.WAService
+	messageRepo domain.MessageRepository
+	log         *logger.Logger
 }
 
-func NewMessageHandler(waService whatsapp.WAService, log *logger.Logger) *MessageHandler {
+func NewMessageHandler(waService whatsapp.WAService, messageRepo domain.MessageRepository, log *logger.Logger) *MessageHandler {
 	return &MessageHandler{
-		waService: waService,
-		log:       log,
+		waService:   waService,
+		messageRepo: messageRepo,
+		log:         log,
 	}
 }
 
@@ -35,11 +39,37 @@ func (h *MessageHandler) Send(c *gin.Context) {
 		return
 	}
 
-	if _, err := h.waService.SendMessage(tenantID, req.Phone, req.Message, req.MediaURL); err != nil {
+	// Create message record for tracking
+	msg := &domain.Message{
+		ID:         uuid.New().String(),
+		TenantID:   tenantID,
+		Phone:      req.Phone,
+		Message:    req.Message,
+		ImageURL:   req.MediaURL,
+		Status:     domain.MessageStatusPending,
+		CampaignID: "", // Individual message
+	}
+
+	if err := h.messageRepo.Create(msg); err != nil {
+		h.log.Error("Failed to create message record", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error"})
+		return
+	}
+
+	whatsappID, err := h.waService.SendMessage(tenantID, req.Phone, req.Message, req.MediaURL)
+	if err != nil {
 		h.log.Error("Failed to send message", "error", err)
+		msg.Status = domain.MessageStatusFailed
+		msg.Error = err.Error()
+		h.messageRepo.Update(msg)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Message sent successfully"})
+	// Mark as sent and update with whatsapp ID
+	if err := h.messageRepo.MarkAsSent(msg.ID, whatsappID); err != nil {
+		h.log.Error("Failed to mark message as sent", "error", err)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Message sent successfully", "whatsapp_id": whatsappID})
 }

@@ -44,6 +44,7 @@ type MessageRepository interface {
 	CountAllSent() (int64, error)
 	CountSentByTenantID(tenantID string) (int64, error)
 	FindByWhatsAppID(whatsappID string) (*Message, error)
+	MarkAsSent(id, whatsappID string) error
 	MarkAsDelivered(whatsappID string) error
 	MarkAsRead(whatsappID string) error
 }

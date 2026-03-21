@@ -51,7 +51,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(userRepo, tenantRepo, cfg, log)
 	deviceHandler := handlers.NewDeviceHandler(deviceRepo, waService, log)
 	wsHandler := handlers.NewWSHandler(waService, cfg.JWTSecret, log)
-	messageHandler := handlers.NewMessageHandler(waService, log)
+	messageHandler := handlers.NewMessageHandler(waService, messageRepo, log)
 	contactHandler := handlers.NewContactHandler(contactRepo, groupRepo, log)
 	groupHandler := handlers.NewGroupHandler(groupRepo, log)
 	campaignHandler := handlers.NewCampaignHandler(campaignRepo, contactRepo, messageRepo, log)
