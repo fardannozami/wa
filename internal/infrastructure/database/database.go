@@ -51,5 +51,8 @@ func Migrate(db *gorm.DB) error {
 
 	// Ensure composite unique index exists for contact upsert ON CONFLICT
 	db.Exec("DROP INDEX IF EXISTS idx_phone_tenant")
-	return db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_phone_tenant ON contacts (phone, tenant_id)").Error
+	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_phone_tenant ON contacts (phone, tenant_id)")
+
+	// Manually ensure whatsapp_id column exists in messages table if AutoMigrate missed it
+	return db.Exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS whatsapp_id VARCHAR(255)").Error
 }
