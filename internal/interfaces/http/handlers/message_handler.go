@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -39,36 +40,29 @@ func (h *MessageHandler) Send(c *gin.Context) {
 		return
 	}
 
-	// Create message record for tracking
+	whatsappID, err := h.waService.SendMessage(tenantID, req.Phone, req.Message, req.MediaURL)
+	if err != nil {
+		h.log.Error("Failed to send message", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Create message record for tracking ONLY on success
+	now := time.Now()
 	msg := &domain.Message{
 		ID:         uuid.New().String(),
 		TenantID:   tenantID,
 		Phone:      req.Phone,
 		Message:    req.Message,
 		ImageURL:   req.MediaURL,
-		Status:     domain.MessageStatusPending,
+		Status:     domain.MessageStatusSent,
+		WhatsAppID: whatsappID,
+		SentAt:     &now,
 		CampaignID: "", // Individual message
 	}
 
 	if err := h.messageRepo.Create(msg); err != nil {
 		h.log.Error("Failed to create message record", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error"})
-		return
-	}
-
-	whatsappID, err := h.waService.SendMessage(tenantID, req.Phone, req.Message, req.MediaURL)
-	if err != nil {
-		h.log.Error("Failed to send message", "error", err)
-		msg.Status = domain.MessageStatusFailed
-		msg.Error = err.Error()
-		h.messageRepo.Update(msg)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Mark as sent and update with whatsapp ID
-	if err := h.messageRepo.MarkAsSent(msg.ID, whatsappID); err != nil {
-		h.log.Error("Failed to mark message as sent", "error", err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Message sent successfully", "whatsapp_id": whatsappID})
