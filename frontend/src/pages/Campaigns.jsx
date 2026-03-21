@@ -435,7 +435,8 @@ export default function Campaigns() {
                 <tr>
                   <th>Image</th>
                   <th>Name</th>
-                  <th>Status</th>
+                   <th>Status</th>
+                  <th>Scheduled At</th>
                   <th>Total</th>
                   <th>Success</th>
                   <th>Failed</th>
@@ -462,10 +463,20 @@ export default function Campaigns() {
                     <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={campaign.name}>
                       {campaign.name}
                     </td>
-                    <td>
+                     <td>
                       <span className={`status-badge ${getStatusBadge(campaign.status)}`}>
                         {campaign.status}
                       </span>
+                    </td>
+                    <td style={{ fontSize: '12px' }}>
+                      {campaign.scheduled_at ? (
+                        <div>
+                          <div>{new Date(campaign.scheduled_at).toLocaleDateString()}</div>
+                          <div style={{ color: '#64748b' }}>{new Date(campaign.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        </div>
+                      ) : (
+                        <span style={{ color: '#9ca3af' }}>—</span>
+                      )}
                     </td>
                     <td>{campaign.total_count || 0}</td>
                     <td>{campaign.success_count || 0}</td>
