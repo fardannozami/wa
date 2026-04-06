@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -26,9 +25,12 @@ func NewWSHandler(waService whatsapp.WAService, jwtSecret string, log *logger.Lo
 }
 
 func (h *WSHandler) HandleQR(c *gin.Context) {
-	fmt.Printf("[WS] HandleQR called\n")
-	fmt.Printf("[WS] Method: %s, Path: %s, Query: %s, Upgrade: %s\n",
-		c.Request.Method, c.Request.URL.Path, c.Request.URL.Query(), c.Request.Header.Get("Upgrade"))
+	h.log.Debug("HandleQR called")
+	h.log.Debug("WS Request Details",
+		"method", c.Request.Method,
+		"path", c.Request.URL.Path,
+		"query", c.Request.URL.Query(),
+		"upgrade", c.Request.Header.Get("Upgrade"))
 
 	if c.Request.Header.Get("Upgrade") == "websocket" {
 		tokenString := c.Query("token")
@@ -56,7 +58,7 @@ func (h *WSHandler) HandleQR(c *gin.Context) {
 		}
 
 		tenantID := claims.TenantID
-		fmt.Printf("[WS] Handler: tenantID from claims: %s\n", tenantID)
+		h.log.Debug("Handler: tenantID from claims", "tenantID", tenantID)
 		if strings.TrimSpace(tenantID) == "" {
 			c.JSON(400, gin.H{"error": "tenant_id not found in token"})
 			return
@@ -67,5 +69,5 @@ func (h *WSHandler) HandleQR(c *gin.Context) {
 	}
 
 	c.JSON(400, gin.H{"error": "websocket upgrade required"})
-	fmt.Printf("[WS] Not a websocket request, returning error\n")
+	h.log.Debug("Not a websocket request, returning error")
 }

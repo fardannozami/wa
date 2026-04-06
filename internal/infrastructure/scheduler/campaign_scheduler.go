@@ -8,6 +8,7 @@ import (
 	"github.com/wa-saas/internal/domain"
 	"github.com/wa-saas/internal/infrastructure/repository"
 	"github.com/wa-saas/internal/infrastructure/whatsapp"
+	"github.com/wa-saas/pkg/logger"
 )
 
 type CampaignScheduler struct {
@@ -15,14 +16,16 @@ type CampaignScheduler struct {
 	messageRepo  *repository.MessageRepository
 	waService    whatsapp.WAService
 	stopChan     chan bool
+	log          *logger.Logger
 }
 
-func NewCampaignScheduler(campaignRepo *repository.CampaignRepository, messageRepo *repository.MessageRepository, waService whatsapp.WAService) *CampaignScheduler {
+func NewCampaignScheduler(campaignRepo *repository.CampaignRepository, messageRepo *repository.MessageRepository, waService whatsapp.WAService, log *logger.Logger) *CampaignScheduler {
 	return &CampaignScheduler{
 		campaignRepo: campaignRepo,
 		messageRepo:  messageRepo,
 		waService:    waService,
 		stopChan:     make(chan bool),
+		log:          log,
 	}
 }
 
@@ -36,12 +39,12 @@ func (s *CampaignScheduler) Start() {
 			case <-ticker.C:
 				s.processScheduledCampaigns()
 			case <-s.stopChan:
-				fmt.Println("[Scheduler] Stopped")
+				s.log.Info("Scheduler stopped")
 				return
 			}
 		}
 	}()
-	fmt.Println("[Scheduler] Started")
+	s.log.Info("Scheduler started")
 }
 
 func (s *CampaignScheduler) Stop() {
@@ -51,26 +54,26 @@ func (s *CampaignScheduler) Stop() {
 func (s *CampaignScheduler) processScheduledCampaigns() {
 	campaigns, err := s.campaignRepo.FindScheduled()
 	if err != nil {
-		fmt.Printf("[Scheduler] Error finding scheduled campaigns: %v\n", err)
+		s.log.Error("Error finding scheduled campaigns", "error", err)
 		return
 	}
 
 	for _, campaign := range campaigns {
 		if campaign.ScheduledAt != nil && time.Now().After(*campaign.ScheduledAt) {
-			fmt.Printf("[Scheduler] Attempting to run scheduled campaign: %s\n", campaign.ID)
+			s.log.Info("Attempting to run scheduled campaign", "campaignID", campaign.ID)
 			
 			// Atomically move from Scheduled to Running
 			updated, err := s.campaignRepo.UpdateStatusAtomic(campaign.ID, []domain.CampaignStatus{domain.CampaignStatusScheduled}, domain.CampaignStatusRunning)
 			if err != nil {
-				fmt.Printf("[Scheduler] Error updating campaign status: %v\n", err)
+				s.log.Error("Error updating campaign status", "campaignID", campaign.ID, "error", err)
 				continue
 			}
 			
 			if updated {
-				fmt.Printf("[Scheduler] Running scheduled campaign: %s\n", campaign.ID)
+				s.log.Info("Running scheduled campaign", "campaignID", campaign.ID)
 				s.runCampaign(&campaign)
 			} else {
-				fmt.Printf("[Scheduler] Campaign %s already started or cancelled, skipping\n", campaign.ID)
+				s.log.Info("Campaign already started or cancelled, skipping", "campaignID", campaign.ID)
 			}
 		}
 	}
@@ -79,7 +82,7 @@ func (s *CampaignScheduler) processScheduledCampaigns() {
 func (s *CampaignScheduler) runCampaign(campaign *domain.Campaign) {
 	messages, err := s.messageRepo.FindByCampaignID(campaign.ID)
 	if err != nil || len(messages) == 0 {
-		fmt.Printf("[Scheduler] No messages found for campaign: %s\n", campaign.ID)
+		s.log.Warn("No messages found for campaign", "campaignID", campaign.ID)
 		return
 	}
 
@@ -137,5 +140,5 @@ func (s *CampaignScheduler) runCampaign(campaign *domain.Campaign) {
 		"failed_count":  failedCount,
 	})
 
-	fmt.Printf("[Scheduler] Campaign %s completed: success=%d, failed=%d\n", campaign.ID, successCount, failedCount)
+	s.log.Info("Campaign completed", "campaignID", campaign.ID, "success", successCount, "failed", failedCount)
 }

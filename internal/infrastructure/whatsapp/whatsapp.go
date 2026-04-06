@@ -18,6 +18,7 @@ import (
 	"github.com/coder/websocket"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/wa-saas/internal/domain"
+	"github.com/wa-saas/pkg/logger"
 
 	"go.mau.fi/whatsmeow"
 	waE2E "go.mau.fi/whatsmeow/binary/proto"
@@ -61,6 +62,8 @@ type WhatsAppService struct {
 
 	wsMu    sync.RWMutex
 	wsConns map[string]*websocket.Conn
+
+	log *logger.Logger
 }
 
 type WhatsMeowClient struct {
@@ -71,7 +74,7 @@ type WhatsMeowClient struct {
 	Phone    string
 }
 
-func NewWhatsAppService(deviceRepo domain.DeviceRepository, contactRepo domain.ContactRepository, groupRepo domain.GroupRepository, messageRepo domain.MessageRepository, sessionDir string) *WhatsAppService {
+func NewWhatsAppService(deviceRepo domain.DeviceRepository, contactRepo domain.ContactRepository, groupRepo domain.GroupRepository, messageRepo domain.MessageRepository, sessionDir string, log *logger.Logger) *WhatsAppService {
 	return &WhatsAppService{
 		deviceRepo:  deviceRepo,
 		contactRepo: contactRepo,
@@ -80,11 +83,12 @@ func NewWhatsAppService(deviceRepo domain.DeviceRepository, contactRepo domain.C
 		sessionDir:  sessionDir,
 		clients:     make(map[string]*WhatsMeowClient),
 		wsConns:     make(map[string]*websocket.Conn),
+		log:         log,
 	}
 }
 
 func (s *WhatsAppService) GenerateQR(tenantID string) (QRCode, error) {
-	fmt.Printf("[WhatsMeow] GenerateQR called for tenant: %s\n", tenantID)
+	s.log.Debug("GenerateQR called for tenant", "tenantID", tenantID)
 	device, err := s.deviceRepo.FindByTenantID(tenantID)
 	if err != nil {
 		device = &domain.Device{
@@ -171,7 +175,7 @@ func (s *WhatsAppService) GenerateQR(tenantID string) (QRCode, error) {
 func (s *WhatsAppService) handleQRChannel(tenantID string, device *domain.Device, client *whatsmeow.Client, evt whatsmeow.QRChannelItem) {
 	switch evt.Event {
 	case "code":
-		fmt.Printf("[WhatsMeow] QR Code received for tenant %s\n", tenantID)
+		s.log.Info("QR Code received for tenant", "tenantID", tenantID)
 
 		qrImage := ""
 		png, err := qrcode.Encode(evt.Code, qrcode.Medium, 256)
@@ -205,7 +209,7 @@ func (s *WhatsAppService) handleQRChannel(tenantID string, device *domain.Device
 			"status": domain.DeviceStatusConnected,
 		})
 
-		fmt.Printf("[WhatsMeow] Device connected for tenant %s\n", tenantID)
+		s.log.Info("Device connected for tenant", "tenantID", tenantID)
 
 	case "failed":
 		device.Status = domain.DeviceStatusDisconnected
@@ -220,18 +224,18 @@ func (s *WhatsAppService) handleQRChannel(tenantID string, device *domain.Device
 			"status": domain.DeviceStatusDisconnected,
 		})
 
-		fmt.Printf("[WhatsMeow] QR scan failed for tenant %s\n", tenantID)
+		s.log.Warn("QR scan failed for tenant", "tenantID", tenantID)
 	}
 }
 
 func (s *WhatsAppService) handleEvent(tenantID string, evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
-		fmt.Printf("[WhatsMeow] Received message: %s\n", v.Message.GetConversation())
+		s.log.Debug("Received message", "content", v.Message.GetConversation())
 	case *events.Connected:
-		fmt.Printf("[WhatsMeow] Connected for tenant %s\n", tenantID)
+		s.log.Info("Connected for tenant", "tenantID", tenantID)
 	case *events.Disconnected:
-		fmt.Printf("[WhatsMeow] Disconnected for tenant %s\n", tenantID)
+		s.log.Info("Disconnected for tenant", "tenantID", tenantID)
 		s.mu.Lock()
 		if c, ok := s.clients[tenantID]; ok {
 			c.Status = domain.DeviceStatusDisconnected
@@ -303,7 +307,7 @@ func (s *WhatsAppService) GetStatus(tenantID string) (domain.DeviceStatus, strin
 	// 3. If the DB thinks it's connected, but it's not in memory, try to spin it up.
 	// This ensures that after a server restart, the API returns the actual status from Whatsmeow.
 	if device.Status == domain.DeviceStatusConnected {
-		fmt.Printf("[WhatsMeow] Instance not in memory, attempting to restore connection for tenant %s\n", tenantID)
+		s.log.Info("Instance not in memory, attempting to restore connection", "tenantID", tenantID)
 		err := s.Connect(tenantID)
 		if err == nil {
 			s.mu.RLock()
@@ -315,7 +319,7 @@ func (s *WhatsAppService) GetStatus(tenantID string) (domain.DeviceStatus, strin
 			return domain.DeviceStatusConnected, device.PhoneNumber, nil
 		}
 
-		fmt.Printf("[WhatsMeow] Failed to restore connection: %v\n", err)
+		s.log.Error("Failed to restore connection", "tenantID", tenantID, "error", err)
 		// Update DB so it reflects WhatsApp's actual disconnected state
 		device.Status = domain.DeviceStatusDisconnected
 		_ = s.deviceRepo.Update(device)
@@ -426,9 +430,9 @@ func (s *WhatsAppService) SendMessage(tenantID, phone, message, mediaURL string)
 	s.mu.RUnlock()
 
 	if !exists || client.Client == nil || (client.Status != domain.DeviceStatusConnected && client.Status != domain.DeviceStatusActive) {
-		fmt.Printf("[WhatsMeow] Client not connected, attempting to reconnect for tenant %s\n", tenantID)
+		s.log.Debug("Client not connected, attempting to reconnect", "tenantID", tenantID)
 		if err := s.Connect(tenantID); err != nil {
-			fmt.Printf("[WhatsMeow] Reconnect failed: %v\n", err)
+			s.log.Error("Reconnect failed", "tenantID", tenantID, "error", err)
 			return "", fmt.Errorf("device not connected: %w", err)
 		}
 
@@ -498,11 +502,11 @@ func (s *WhatsAppService) SendMessage(tenantID, phone, message, mediaURL string)
 
 	resp, err := client.Client.SendMessage(context.Background(), jid, &waMsg)
 	if err != nil {
-		fmt.Printf("[WhatsMeow] SendMessage error: %v\n", err)
+		s.log.Error("SendMessage error", "tenantID", tenantID, "error", err)
 		return "", fmt.Errorf("failed to send message: %w", err)
 	}
 
-	fmt.Printf("[WhatsMeow] Message sent to %s (ID: %s)\n", phone, resp.ID)
+	s.log.Info("Message sent", "tenantID", tenantID, "phone", phone, "id", resp.ID)
 	return string(resp.ID), nil
 }
 
@@ -540,7 +544,7 @@ func (s *WhatsAppService) generateID() string {
 
 func (s *WhatsAppService) PushCampaignUpdate(tenantID string, data map[string]interface{}) {
 	data["type"] = "campaign_update"
-	fmt.Printf("[PushCampaignUpdate] tenantID=%s, data=%+v\n", tenantID, data)
+	s.log.Debug("PushCampaignUpdate", "tenantID", tenantID, "data", data)
 	s.pushToWebSocket(tenantID, data)
 }
 
@@ -549,7 +553,7 @@ func (s *WhatsAppService) pushToWebSocket(tenantID string, data map[string]inter
 	conn, ok := s.wsConns[tenantID]
 	s.wsMu.RUnlock()
 
-	fmt.Printf("[WS] pushToWebSocket: tenantID=%s, hasConn=%v, conn=%v\n", tenantID, ok, conn)
+	s.log.Debug("pushToWebSocket", "tenantID", tenantID, "hasConn", ok)
 
 	if !ok || conn == nil {
 		return

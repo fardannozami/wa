@@ -43,9 +43,9 @@ func main() {
 	campaignRepo := repository.NewCampaignRepository(db)
 	messageRepo := repository.NewMessageRepository(db)
 
-	waService := whatsapp.NewWhatsAppService(deviceRepo, contactRepo, groupRepo, messageRepo, cfg.SessionDir)
+	waService := whatsapp.NewWhatsAppService(deviceRepo, contactRepo, groupRepo, messageRepo, cfg.SessionDir, log)
 
-	campaignScheduler := scheduler.NewCampaignScheduler(campaignRepo, messageRepo, waService)
+	campaignScheduler := scheduler.NewCampaignScheduler(campaignRepo, messageRepo, waService, log)
 	campaignScheduler.Start()
 
 	authHandler := handlers.NewAuthHandler(userRepo, tenantRepo, cfg, log)
@@ -60,7 +60,11 @@ func main() {
 	statsHandler := handlers.NewStatsHandler(campaignRepo, contactRepo, messageRepo, log)
 	mediaHandler := handlers.NewMediaHandler(log)
 
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{"/api/v1/health"},
+	}))
+	router.Use(gin.Recovery())
 	router.Use(middleware.CORS())
 
 	// Static files
