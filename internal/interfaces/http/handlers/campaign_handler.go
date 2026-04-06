@@ -404,6 +404,7 @@ func (h *CampaignHandler) processCampaignMessages(campaign *domain.Campaign, mes
 }
 
 func (h *CampaignHandler) createMessagesForCampaign(campaign *domain.Campaign, contactIDs []string, template string) []domain.Message {
+	_ = h.messageRepo.DeleteByCampaignID(campaign.ID)
 	var messages []domain.Message
 
 	for _, contactID := range contactIDs {

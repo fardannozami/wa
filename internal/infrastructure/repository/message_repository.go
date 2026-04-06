@@ -23,6 +23,10 @@ func (r *MessageRepository) CreateBatch(messages []domain.Message) error {
 	return r.db.Create(&messages).Error
 }
 
+func (r *MessageRepository) DeleteByCampaignID(campaignID string) error {
+	return r.db.Where("campaign_id = ?", campaignID).Delete(&domain.Message{}).Error
+}
+
 func (r *MessageRepository) FindByCampaignID(campaignID string) ([]domain.Message, error) {
 	var messages []domain.Message
 	err := r.db.Where("campaign_id = ?", campaignID).Order("created_at ASC").Find(&messages).Error

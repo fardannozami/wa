@@ -36,6 +36,7 @@ type Message struct {
 type MessageRepository interface {
 	Create(message *Message) error
 	CreateBatch(messages []Message) error
+	DeleteByCampaignID(campaignID string) error
 	FindByCampaignID(campaignID string) ([]Message, error)
 	FindByID(id string) (*Message, error)
 	Update(message *Message) error
