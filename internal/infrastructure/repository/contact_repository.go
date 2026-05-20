@@ -120,6 +120,12 @@ func (r *ContactRepository) Update(contact *domain.Contact) error {
 		existing.Name = contact.Name
 		existing.Phone = contact.Phone
 		existing.Prefix = contact.Prefix
+		existing.Item1 = contact.Item1
+		existing.Item2 = contact.Item2
+		existing.Item3 = contact.Item3
+		existing.Item4 = contact.Item4
+		existing.Item5 = contact.Item5
+		existing.Item6 = contact.Item6
 
 		if err := tx.Save(&existing).Error; err != nil {
 			return err
