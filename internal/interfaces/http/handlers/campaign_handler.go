@@ -413,7 +413,7 @@ func (h *CampaignHandler) createMessagesForCampaign(campaign *domain.Campaign, c
 			continue
 		}
 
-		message := h.replaceTemplate(template, contact.Prefix, contact.Name)
+		message := h.replaceTemplate(template, contact)
 
 		messages = append(messages, domain.Message{
 			ID:         uuid.New().String(),
@@ -437,8 +437,14 @@ func (h *CampaignHandler) createMessagesForCampaign(campaign *domain.Campaign, c
 	return messages
 }
 
-func (h *CampaignHandler) replaceTemplate(template, prefix, name string) string {
-	res := strings.ReplaceAll(template, "{{name}}", name)
-	res = strings.ReplaceAll(res, "{{prefix}}", prefix)
+func (h *CampaignHandler) replaceTemplate(template string, contact *domain.Contact) string {
+	res := strings.ReplaceAll(template, "{{name}}", contact.Name)
+	res = strings.ReplaceAll(res, "{{prefix}}", contact.Prefix)
+	res = strings.ReplaceAll(res, "{{item1}}", contact.Item1)
+	res = strings.ReplaceAll(res, "{{item2}}", contact.Item2)
+	res = strings.ReplaceAll(res, "{{item3}}", contact.Item3)
+	res = strings.ReplaceAll(res, "{{item4}}", contact.Item4)
+	res = strings.ReplaceAll(res, "{{item5}}", contact.Item5)
+	res = strings.ReplaceAll(res, "{{item6}}", contact.Item6)
 	return res
 }

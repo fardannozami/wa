@@ -68,6 +68,12 @@ func (h *ContactHandler) Create(c *gin.Context) {
 		Name     string   `json:"name" binding:"required"`
 		Phone    string   `json:"phone" binding:"required"`
 		Prefix   string   `json:"prefix"`
+		Item1    string   `json:"item1"`
+		Item2    string   `json:"item2"`
+		Item3    string   `json:"item3"`
+		Item4    string   `json:"item4"`
+		Item5    string   `json:"item5"`
+		Item6    string   `json:"item6"`
 		GroupIDs []string `json:"group_ids"`
 	}
 
@@ -84,6 +90,12 @@ func (h *ContactHandler) Create(c *gin.Context) {
 		Name:     input.Name,
 		Phone:    h.sanitizePhone(input.Phone),
 		Prefix:   input.Prefix,
+		Item1:    input.Item1,
+		Item2:    input.Item2,
+		Item3:    input.Item3,
+		Item4:    input.Item4,
+		Item5:    input.Item5,
+		Item6:    input.Item6,
 	}
 
 	if len(input.GroupIDs) > 0 {
@@ -115,6 +127,12 @@ func (h *ContactHandler) Update(c *gin.Context) {
 		Name     string   `json:"name"`
 		Phone    string   `json:"phone"`
 		Prefix   string   `json:"prefix"`
+		Item1    string   `json:"item1"`
+		Item2    string   `json:"item2"`
+		Item3    string   `json:"item3"`
+		Item4    string   `json:"item4"`
+		Item5    string   `json:"item5"`
+		Item6    string   `json:"item6"`
 		GroupIDs []string `json:"group_ids"`
 	}
 
@@ -141,6 +159,12 @@ func (h *ContactHandler) Update(c *gin.Context) {
 		contact.Phone = h.sanitizePhone(input.Phone)
 	}
 	contact.Prefix = input.Prefix
+	contact.Item1 = input.Item1
+	contact.Item2 = input.Item2
+	contact.Item3 = input.Item3
+	contact.Item4 = input.Item4
+	contact.Item5 = input.Item5
+	contact.Item6 = input.Item6
 	if input.GroupIDs != nil {
 		contact.Groups = nil
 		for _, gid := range input.GroupIDs {
@@ -231,11 +255,36 @@ func (h *ContactHandler) ImportCSV(c *gin.Context) {
 		if len(record) >= 3 {
 			prefix = strings.TrimSpace(record[2])
 		}
+		item1, item2, item3, item4, item5, item6 := "", "", "", "", "", ""
+		if len(record) >= 5 {
+			item1 = strings.TrimSpace(record[4])
+		}
+		if len(record) >= 6 {
+			item2 = strings.TrimSpace(record[5])
+		}
+		if len(record) >= 7 {
+			item3 = strings.TrimSpace(record[6])
+		}
+		if len(record) >= 8 {
+			item4 = strings.TrimSpace(record[7])
+		}
+		if len(record) >= 9 {
+			item5 = strings.TrimSpace(record[8])
+		}
+		if len(record) >= 10 {
+			item6 = strings.TrimSpace(record[9])
+		}
 
 		existingContact, err := h.contactRepo.FindByPhone(tenantID, phone)
 		if err == nil && existingContact != nil {
 			existingContact.Name = name
 			existingContact.Prefix = prefix
+			existingContact.Item1 = item1
+			existingContact.Item2 = item2
+			existingContact.Item3 = item3
+			existingContact.Item4 = item4
+			existingContact.Item5 = item5
+			existingContact.Item6 = item6
 
 			var groupIDs []string
 			if len(record) >= 4 && strings.TrimSpace(record[3]) != "" {
@@ -266,6 +315,12 @@ func (h *ContactHandler) ImportCSV(c *gin.Context) {
 				Name:     name,
 				Phone:    phone,
 				Prefix:   prefix,
+				Item1:    item1,
+				Item2:    item2,
+				Item3:    item3,
+				Item4:    item4,
+				Item5:    item5,
+				Item6:    item6,
 			}
 
 			if len(record) >= 4 && strings.TrimSpace(record[3]) != "" {

@@ -573,7 +573,7 @@ export default function Campaigns() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Message Template</label>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
                     <button
                       type="button"
                       onClick={() => insertPlaceholder('{{prefix}}')}
@@ -604,6 +604,24 @@ export default function Campaigns() {
                     >
                       + name
                     </button>
+                    {[1, 2, 3, 4, 5, 6].map(num => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => insertPlaceholder(`{{item${num}}}`)}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '12px',
+                          background: '#f3f4f6',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          color: '#374151'
+                        }}
+                      >
+                        + item{num}
+                      </button>
+                    ))}
                   </div>
                   <textarea
                     ref={templateRef}
@@ -611,10 +629,10 @@ export default function Campaigns() {
                     rows={4}
                     value={formData.template}
                     onChange={(e) => setFormData({ ...formData, template: e.target.value })}
-                    placeholder="Hello {{prefix}} {{name}}, this is your message..."
+                    placeholder="Hello {{prefix}} {{name}}, your {{item1}} is ready..."
                     required
                   />
-                  <small style={{ color: '#666' }}>Use {"{{prefix}}"} and {"{{name}}"} to personalize messages</small>
+                  <small style={{ color: '#666' }}>Use {"{{prefix}}"}, {"{{name}}"}, and {"{{item1}}"} to {"{{item6}}"} to personalize messages</small>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Campaign Image (Optional)</label>

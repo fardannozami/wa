@@ -8,6 +8,12 @@ type Contact struct {
 	Name      string    `json:"name" gorm:"type:varchar(255)"`
 	Phone     string    `json:"phone" gorm:"type:varchar(50);not null;uniqueIndex:idx_phone_tenant"`
 	Prefix    string    `json:"prefix" gorm:"type:varchar(20)"`
+	Item1     string    `json:"item1" gorm:"type:varchar(255)"`
+	Item2     string    `json:"item2" gorm:"type:varchar(255)"`
+	Item3     string    `json:"item3" gorm:"type:varchar(255)"`
+	Item4     string    `json:"item4" gorm:"type:varchar(255)"`
+	Item5     string    `json:"item5" gorm:"type:varchar(255)"`
+	Item6     string    `json:"item6" gorm:"type:varchar(255)"`
 	Groups    []Group   `json:"groups" gorm:"many2many:contact_groups;"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

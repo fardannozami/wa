@@ -14,7 +14,7 @@ export default function Contacts() {
   const [messageText, setMessageText] = useState('')
   const [sending, setSending] = useState(false)
   const [deviceStatus, setDeviceStatus] = useState('disconnected')
-  const [formData, setFormData] = useState({ name: '', phone: '', prefix: '', group_ids: [] })
+  const [formData, setFormData] = useState({ name: '', phone: '', prefix: '', item1: '', item2: '', item3: '', item4: '', item5: '', item6: '', group_ids: [] })
   const [selectedGroup, setSelectedGroup] = useState('')
   const [groups, setGroups] = useState([])
   const [showGroupModal, setShowGroupModal] = useState(false)
@@ -106,7 +106,7 @@ export default function Contacts() {
       }
       setShowModal(false)
       setEditingContact(null)
-      setFormData({ name: '', phone: '', prefix: '', group_ids: [] })
+      setFormData({ name: '', phone: '', prefix: '', item1: '', item2: '', item3: '', item4: '', item5: '', item6: '', group_ids: [] })
       loadContacts()
     } catch (e) {
       console.error(e)
@@ -118,14 +118,25 @@ export default function Contacts() {
     loadGroups()
     setEditingContact(contact)
     const groupIds = contact.groups ? contact.groups.map(g => g.id) : []
-    setFormData({ name: contact.name, phone: contact.phone, prefix: contact.prefix || '', group_ids: groupIds })
+    setFormData({ 
+      name: contact.name, 
+      phone: contact.phone, 
+      prefix: contact.prefix || '', 
+      item1: contact.item1 || '',
+      item2: contact.item2 || '',
+      item3: contact.item3 || '',
+      item4: contact.item4 || '',
+      item5: contact.item5 || '',
+      item6: contact.item6 || '',
+      group_ids: groupIds 
+    })
     setShowModal(true)
   }
 
   const openAddModal = () => {
     loadGroups()
     setEditingContact(null)
-    setFormData({ name: '', phone: '', prefix: '', group_ids: [] })
+    setFormData({ name: '', phone: '', prefix: '', item1: '', item2: '', item3: '', item4: '', item5: '', item6: '', group_ids: [] })
     setShowModal(true)
   }
 
@@ -271,12 +282,18 @@ export default function Contacts() {
       const contacts = data.data || []
 
       const csvContent = [
-        ['Name', 'Phone', 'Prefix', 'Groups'].join(','),
+        ['Name', 'Phone', 'Prefix', 'Groups', 'Item1', 'Item2', 'Item3', 'Item4', 'Item5', 'Item6'].join(','),
         ...contacts.map(c => [
           `"${c.name || ''}"`,
           `"${c.phone || ''}"`,
           `"${c.prefix || ''}"`,
-          `"${c.groups && c.groups.length > 0 ? c.groups.map(g => g.name).join(',') : ''}"`
+          `"${c.groups && c.groups.length > 0 ? c.groups.map(g => g.name).join(',') : ''}"`,
+          `"${c.item1 || ''}"`,
+          `"${c.item2 || ''}"`,
+          `"${c.item3 || ''}"`,
+          `"${c.item4 || ''}"`,
+          `"${c.item5 || ''}"`,
+          `"${c.item6 || ''}"`
         ].join(','))
       ].join('\n')
 
@@ -294,10 +311,10 @@ export default function Contacts() {
 
   const downloadTemplate = () => {
     const template = [
-      'Name,Phone,Prefix,Groups',
-      'John Doe,628123456789,Pak,Customer',
-      'Jane Smith,628987654321,Bu,"VIP,Premium"',
-      'Bob Wilson,628111222333,Boss,"Customer,Premium"'
+      'Name,Phone,Prefix,Groups,Item1,Item2,Item3,Item4,Item5,Item6',
+      'John Doe,628123456789,Pak,Customer,ProductA,150000,June 26,,,',
+      'Jane Smith,628987654321,Bu,"VIP,Premium",ProductB,250000,June 30,,,',
+      'Bob Wilson,628111222333,Boss,"Customer,Premium",ProductC,100000,July 5,,,'
     ].join('\n')
 
     const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' })
@@ -460,6 +477,32 @@ export default function Contacts() {
                     placeholder="+62812345678"
                     required
                   />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Item 1</label>
+                    <input type="text" className="form-input" value={formData.item1} onChange={(e) => setFormData({ ...formData, item1: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Item 2</label>
+                    <input type="text" className="form-input" value={formData.item2} onChange={(e) => setFormData({ ...formData, item2: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Item 3</label>
+                    <input type="text" className="form-input" value={formData.item3} onChange={(e) => setFormData({ ...formData, item3: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Item 4</label>
+                    <input type="text" className="form-input" value={formData.item4} onChange={(e) => setFormData({ ...formData, item4: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Item 5</label>
+                    <input type="text" className="form-input" value={formData.item5} onChange={(e) => setFormData({ ...formData, item5: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Item 6</label>
+                    <input type="text" className="form-input" value={formData.item6} onChange={(e) => setFormData({ ...formData, item6: e.target.value })} />
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Groups (select multiple)</label>
