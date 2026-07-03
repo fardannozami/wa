@@ -44,6 +44,10 @@ export default function Device() {
         } else if (data.type === 'connected') {
           setStatus('connected')
           setQrCode(null)
+          if (data.phone) {
+            setPhone(data.phone)
+          }
+          loadDevice()
         } else if (data.type === 'failed') {
           setStatus('disconnected')
           setQrCode(null)

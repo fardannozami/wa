@@ -192,8 +192,11 @@ func (s *WhatsAppService) handleQRChannel(tenantID string, device *domain.Device
 
 	case "success":
 		device.Status = domain.DeviceStatusConnected
+		phone := ""
 		if client.Store.ID != nil {
 			device.JID = client.Store.ID.ToNonAD().String()
+			phone = client.Store.ID.User
+			device.PhoneNumber = phone
 		}
 		device.LastSeen = time.Now()
 		_ = s.deviceRepo.Update(device)
@@ -201,12 +204,14 @@ func (s *WhatsAppService) handleQRChannel(tenantID string, device *domain.Device
 		s.mu.Lock()
 		if c, ok := s.clients[tenantID]; ok {
 			c.Status = domain.DeviceStatusConnected
+			c.Phone = phone
 		}
 		s.mu.Unlock()
 
 		s.pushToWebSocket(tenantID, map[string]interface{}{
 			"type":   "connected",
 			"status": domain.DeviceStatusConnected,
+			"phone":  phone,
 		})
 
 		s.log.Info("Device connected for tenant", "tenantID", tenantID)
