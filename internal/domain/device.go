@@ -19,9 +19,11 @@ type Device struct {
 	SessionData string       `json:"session_data" gorm:"type:text"`
 	Status      DeviceStatus `json:"status" gorm:"type:varchar(20);default:'disconnected'"`
 	LastSeen    time.Time    `json:"last_seen"`
-	PhoneNumber string       `json:"phone_number"`
-	CreatedAt   time.Time    `json:"created_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
+	PhoneNumber  string       `json:"phone_number"`
+	ContactCount int          `json:"contact_count" gorm:"default:0"`
+	DailyLimit   int          `json:"daily_limit" gorm:"default:100"`
+	CreatedAt    time.Time    `json:"created_at"`
+	UpdatedAt    time.Time    `json:"updated_at"`
 }
 
 type DeviceRepository interface {

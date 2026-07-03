@@ -215,6 +215,7 @@ func (s *WhatsAppService) handleQRChannel(tenantID string, device *domain.Device
 		})
 
 		s.log.Info("Device connected for tenant", "tenantID", tenantID)
+		s.updateDeviceQuota(tenantID, client)
 
 	case "failed":
 		device.Status = domain.DeviceStatusDisconnected
@@ -295,6 +296,9 @@ func (s *WhatsAppService) GetStatus(tenantID string) (domain.DeviceStatus, strin
 	// 1. Check from existing whatsmeow client in memory
 	if exists && client != nil && client.Client != nil {
 		if client.Client.IsConnected() && client.Client.IsLoggedIn() {
+			// Asynchronously update device quota cache in DB
+			go s.updateDeviceQuota(tenantID, client.Client)
+
 			return domain.DeviceStatusConnected, client.Phone, nil
 		}
 		if client.Status == domain.DeviceStatusQRGenerated {
@@ -333,6 +337,34 @@ func (s *WhatsAppService) GetStatus(tenantID string) (domain.DeviceStatus, strin
 	}
 
 	return device.Status, device.PhoneNumber, nil
+}
+
+func (s *WhatsAppService) updateDeviceQuota(tenantID string, client *whatsmeow.Client) {
+	if client == nil || client.Store == nil {
+		return
+	}
+	contacts, err := client.Store.Contacts.GetAllContacts(context.Background())
+	if err != nil {
+		s.log.Error("Failed to get contacts for quota calculation", "tenantID", tenantID, "error", err)
+		return
+	}
+	totalContacts := len(contacts)
+	dailyLimit := 100 // Default
+	if totalContacts >= 50 {
+		dailyLimit = 1000
+	} else if totalContacts >= 10 {
+		dailyLimit = 500
+	}
+
+	device, err := s.deviceRepo.FindByTenantID(tenantID)
+	if err == nil {
+		if device.ContactCount != totalContacts || device.DailyLimit != dailyLimit {
+			device.ContactCount = totalContacts
+			device.DailyLimit = dailyLimit
+			_ = s.deviceRepo.Update(device)
+			s.log.Info("Device daily limit updated based on contact count", "tenantID", tenantID, "contacts", totalContacts, "limit", dailyLimit)
+		}
+	}
 }
 
 func (s *WhatsAppService) Connect(tenantID string) error {
@@ -397,6 +429,8 @@ func (s *WhatsAppService) Connect(tenantID string) error {
 	device.LastSeen = time.Now()
 	_ = s.deviceRepo.Update(device)
 
+	s.updateDeviceQuota(tenantID, client)
+
 	return nil
 }
 
@@ -429,6 +463,19 @@ func (s *WhatsAppService) Disconnect(tenantID string) error {
 
 func (s *WhatsAppService) SendMessage(tenantID, phone, message, mediaURL string) (string, error) {
 	fmt.Printf("[WhatsMeow] SendMessage called: tenant=%s, phone=%s, message=%s, mediaURL=%s\n", tenantID, phone, message, mediaURL)
+
+	// Check dynamic daily message quota
+	device, err := s.deviceRepo.FindByTenantID(tenantID)
+	dailyLimit := 100
+	if err == nil {
+		dailyLimit = device.DailyLimit
+	}
+
+	sentToday, err := s.messageRepo.CountSentTodayByTenantID(tenantID)
+	if err == nil && sentToday >= int64(dailyLimit) {
+		s.log.Warn("Daily message quota exceeded", "tenantID", tenantID, "sentToday", sentToday, "limit", dailyLimit)
+		return "", fmt.Errorf("daily message limit reached (%d/%d)", sentToday, dailyLimit)
+	}
 
 	s.mu.RLock()
 	client, exists := s.clients[tenantID]

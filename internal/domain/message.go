@@ -44,6 +44,7 @@ type MessageRepository interface {
 	CountByCampaignID(campaignID string) (int64, int64, int64, error)
 	CountAllSent() (int64, error)
 	CountSentByTenantID(tenantID string) (int64, error)
+	CountSentTodayByTenantID(tenantID string) (int64, error)
 	FindByWhatsAppID(whatsappID string) (*Message, error)
 	MarkAsSent(id, whatsappID string) error
 	MarkAsDelivered(whatsappID string) error

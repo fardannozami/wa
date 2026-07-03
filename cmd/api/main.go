@@ -54,7 +54,7 @@ func main() {
 	messageHandler := handlers.NewMessageHandler(waService, messageRepo, log)
 	contactHandler := handlers.NewContactHandler(contactRepo, groupRepo, log)
 	groupHandler := handlers.NewGroupHandler(groupRepo, log)
-	campaignHandler := handlers.NewCampaignHandler(campaignRepo, contactRepo, messageRepo, log)
+	campaignHandler := handlers.NewCampaignHandler(campaignRepo, contactRepo, messageRepo, deviceRepo, log)
 	campaignHandler.SetWAService(waService)
 	adminHandler := handlers.NewAdminHandler(userRepo, messageRepo, log)
 	statsHandler := handlers.NewStatsHandler(campaignRepo, contactRepo, messageRepo, log)

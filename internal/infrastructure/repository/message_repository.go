@@ -107,6 +107,18 @@ func (r *MessageRepository) CountSentByTenantID(tenantID string) (int64, error) 
 	return count, err
 }
 
+func (r *MessageRepository) CountSentTodayByTenantID(tenantID string) (int64, error) {
+	var count int64
+	t := time.Now()
+	todayStart := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	err := r.db.Model(&domain.Message{}).Where("tenant_id = ? AND sent_at >= ? AND status IN ?", tenantID, todayStart, []domain.MessageStatus{
+		domain.MessageStatusSent,
+		domain.MessageStatusDelivered,
+		domain.MessageStatusRead,
+	}).Count(&count).Error
+	return count, err
+}
+
 func (r *MessageRepository) FindByWhatsAppID(whatsappID string) (*domain.Message, error) {
 	var message domain.Message
 	err := r.db.First(&message, "whatsapp_id = ?", whatsappID).Error

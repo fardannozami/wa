@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"net/http"
 	"strconv"
@@ -19,15 +20,17 @@ type CampaignHandler struct {
 	campaignRepo *repository.CampaignRepository
 	contactRepo  *repository.ContactRepository
 	messageRepo  *repository.MessageRepository
+	deviceRepo   *repository.DeviceRepository
 	waService    whatsapp.WAService
 	log          *logger.Logger
 }
 
-func NewCampaignHandler(campaignRepo *repository.CampaignRepository, contactRepo *repository.ContactRepository, messageRepo *repository.MessageRepository, log *logger.Logger) *CampaignHandler {
+func NewCampaignHandler(campaignRepo *repository.CampaignRepository, contactRepo *repository.ContactRepository, messageRepo *repository.MessageRepository, deviceRepo *repository.DeviceRepository, log *logger.Logger) *CampaignHandler {
 	return &CampaignHandler{
 		campaignRepo: campaignRepo,
 		contactRepo:  contactRepo,
 		messageRepo:  messageRepo,
+		deviceRepo:   deviceRepo,
 		log:          log,
 	}
 }
@@ -322,6 +325,30 @@ func (h *CampaignHandler) Send(c *gin.Context) {
 	if err != nil || len(messages) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No messages in campaign"})
 		return
+	}
+
+	// Verify remaining daily message limit
+	device, err := h.deviceRepo.FindByTenantID(tenantID)
+	dailyLimit := 100
+	if err == nil {
+		dailyLimit = device.DailyLimit
+	}
+
+	sentToday, err := h.messageRepo.CountSentTodayByTenantID(tenantID)
+	if err == nil {
+		remaining := int64(dailyLimit) - sentToday
+		if remaining <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("Daily message limit reached (%d/%d). You cannot send any more messages today.", sentToday, dailyLimit),
+			})
+			return
+		}
+		if int64(len(messages)) > remaining {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("Campaign size (%d messages) exceeds your remaining daily quota (%d messages left out of %d). Please reduce the campaign contacts, wait until tomorrow, or use a warmer WhatsApp number.", len(messages), remaining, dailyLimit),
+			})
+			return
+		}
 	}
 
 	updated, err := h.campaignRepo.UpdateStatusAtomic(campaignID, []domain.CampaignStatus{domain.CampaignStatusDraft, domain.CampaignStatusScheduled}, domain.CampaignStatusRunning)
