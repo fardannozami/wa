@@ -289,7 +289,7 @@ func (s *WhatsAppService) GetStatus(tenantID string) (domain.DeviceStatus, strin
 
 	// 1. Check from existing whatsmeow client in memory
 	if exists && client != nil && client.Client != nil {
-		if client.Client.IsConnected() {
+		if client.Client.IsConnected() && client.Client.IsLoggedIn() {
 			return domain.DeviceStatusConnected, client.Phone, nil
 		}
 		if client.Status == domain.DeviceStatusQRGenerated {
