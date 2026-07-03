@@ -397,8 +397,16 @@ func (h *CampaignHandler) processCampaignMessages(campaign *domain.Campaign, mes
 		})
 
 		if i < len(messages)-1 {
-			delay := time.Duration(25+rand.IntN(36)) * time.Second
-			time.Sleep(delay)
+			// Setiap kelipatan 50 pesan terkirim, berikan jeda istirahat panjang (5-10 menit)
+			if (i+1)%50 == 0 {
+				longDelay := time.Duration(300+rand.IntN(301)) * time.Second // 300 hingga 600 detik (5-10 menit)
+				h.log.Info("Sent 50 messages, applying long delay to avoid ban", "messagesSent", i+1, "duration", longDelay.String(), "campaign_id", campaign.ID)
+				time.Sleep(longDelay)
+			} else {
+				// Jeda antar pesan standar (diperlama: 45 hingga 90 detik)
+				delay := time.Duration(45+rand.IntN(46)) * time.Second // 45 hingga 90 detik
+				time.Sleep(delay)
+			}
 		}
 	}
 }
