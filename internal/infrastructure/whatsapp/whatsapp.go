@@ -47,6 +47,7 @@ type WAService interface {
 	PushCampaignUpdate(tenantID string, data map[string]interface{})
 	GetJoinedGroups(tenantID string) ([]map[string]interface{}, error)
 	ImportGroupContacts(tenantID, groupJID string) (int, error)
+	SyncAllQuotas()
 	Shutdown()
 }
 
@@ -364,6 +365,32 @@ func (s *WhatsAppService) updateDeviceQuota(tenantID string, client *whatsmeow.C
 			_ = s.deviceRepo.Update(device)
 			s.log.Info("Device daily limit updated based on contact count", "tenantID", tenantID, "contacts", totalContacts, "limit", dailyLimit)
 		}
+	}
+}
+
+// SyncAllQuotas iterates all currently connected and authenticated clients
+// and recalculates their daily quota based on latest synced contact count.
+func (s *WhatsAppService) SyncAllQuotas() {
+	s.mu.RLock()
+	// Snapshot map keys so we don't hold the lock during DB/SQLite ops
+	tenantIDs := make([]string, 0, len(s.clients))
+	for tid := range s.clients {
+		tenantIDs = append(tenantIDs, tid)
+	}
+	s.mu.RUnlock()
+
+	for _, tenantID := range tenantIDs {
+		s.mu.RLock()
+		c, ok := s.clients[tenantID]
+		s.mu.RUnlock()
+
+		if !ok || c == nil || c.Client == nil {
+			continue
+		}
+		if !c.Client.IsConnected() || !c.Client.IsLoggedIn() {
+			continue
+		}
+		s.updateDeviceQuota(tenantID, c.Client)
 	}
 }
 

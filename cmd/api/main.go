@@ -48,6 +48,10 @@ func main() {
 	campaignScheduler := scheduler.NewCampaignScheduler(campaignRepo, messageRepo, waService, log)
 	campaignScheduler.Start()
 
+	// Sync contact counts and recalculate trust level / daily quota every 6 hours
+	quotaSyncScheduler := scheduler.NewQuotaSyncScheduler(waService, 6*time.Hour, log)
+	quotaSyncScheduler.Start()
+
 	authHandler := handlers.NewAuthHandler(userRepo, tenantRepo, cfg, log)
 	deviceHandler := handlers.NewDeviceHandler(deviceRepo, messageRepo, waService, log)
 	wsHandler := handlers.NewWSHandler(waService, cfg.JWTSecret, log)
