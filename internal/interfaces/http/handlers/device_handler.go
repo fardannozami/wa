@@ -12,16 +12,18 @@ import (
 )
 
 type DeviceHandler struct {
-	deviceRepo *repository.DeviceRepository
-	waService  whatsapp.WAService
-	log        *logger.Logger
+	deviceRepo  *repository.DeviceRepository
+	messageRepo *repository.MessageRepository
+	waService   whatsapp.WAService
+	log         *logger.Logger
 }
 
-func NewDeviceHandler(deviceRepo *repository.DeviceRepository, waService whatsapp.WAService, log *logger.Logger) *DeviceHandler {
+func NewDeviceHandler(deviceRepo *repository.DeviceRepository, messageRepo *repository.MessageRepository, waService whatsapp.WAService, log *logger.Logger) *DeviceHandler {
 	return &DeviceHandler{
-		deviceRepo: deviceRepo,
-		waService:  waService,
-		log:        log,
+		deviceRepo:  deviceRepo,
+		messageRepo: messageRepo,
+		waService:   waService,
+		log:         log,
 	}
 }
 
@@ -41,7 +43,16 @@ func (h *DeviceHandler) Get(c *gin.Context) {
 		device.PhoneNumber = phone
 	}
 
-	c.JSON(http.StatusOK, gin.H{"device": device})
+	// Fetch messages sent today for quota display
+	var sentToday int64
+	if count, err := h.messageRepo.CountSentTodayByTenantID(tenantID); err == nil {
+		sentToday = count
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"device":     device,
+		"sent_today": sentToday,
+	})
 }
 
 func (h *DeviceHandler) Connect(c *gin.Context) {

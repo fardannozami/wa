@@ -49,7 +49,7 @@ func main() {
 	campaignScheduler.Start()
 
 	authHandler := handlers.NewAuthHandler(userRepo, tenantRepo, cfg, log)
-	deviceHandler := handlers.NewDeviceHandler(deviceRepo, waService, log)
+	deviceHandler := handlers.NewDeviceHandler(deviceRepo, messageRepo, waService, log)
 	wsHandler := handlers.NewWSHandler(waService, cfg.JWTSecret, log)
 	messageHandler := handlers.NewMessageHandler(waService, messageRepo, log)
 	contactHandler := handlers.NewContactHandler(contactRepo, groupRepo, log)

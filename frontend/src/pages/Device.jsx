@@ -5,6 +5,7 @@ export default function Device() {
   const [device, setDevice] = useState(null)
   const [status, setStatus] = useState('disconnected')
   const [phone, setPhone] = useState('')
+  const [sentToday, setSentToday] = useState(0)
   const [qrCode, setQrCode] = useState(null)
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState(false)
@@ -105,6 +106,7 @@ export default function Device() {
     try {
       const { data } = await deviceApi.get()
       setDevice(data.device)
+      setSentToday(data.sent_today ?? 0)
       if (data.device) {
         setStatus(data.device.status || 'disconnected')
         setPhone(data.device.phone_number || '')
@@ -203,6 +205,55 @@ export default function Device() {
             </button>
           )}
         </div>
+
+        {isConnected && device && (
+          <div style={{ 
+            marginTop: '24px', 
+            paddingTop: '24px', 
+            borderTop: '1px solid var(--border)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: '16px'
+          }}>
+            <div style={{ padding: '12px 16px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Total Contacts</p>
+              <p style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                {device.contact_count ?? 0}
+              </p>
+            </div>
+            <div style={{ padding: '12px 16px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Daily Quota Limit</p>
+              <p style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                {device.daily_limit ?? 100} msgs
+              </p>
+            </div>
+            <div style={{ padding: '12px 16px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Number Trust Level</p>
+              <span className={`status-badge ${
+                (device.daily_limit >= 1000) ? 'status-connected' : 
+                (device.daily_limit >= 500) ? 'status-running' : 'status-disconnected'
+              }`} style={{ display: 'inline-flex', marginTop: '2px' }}>
+                {device.daily_limit >= 1000 ? 'Established' : 
+                 device.daily_limit >= 500 ? 'Warm' : 'Cold'}
+              </span>
+            </div>
+            <div style={{ padding: '12px 16px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Sent Today</p>
+              <p style={{ fontSize: '20px', fontWeight: '700', color: sentToday >= (device.daily_limit ?? 100) ? 'var(--error)' : 'var(--text-primary)' }}>
+                {sentToday} <span style={{ fontSize: '13px', fontWeight: '400', color: 'var(--text-muted)' }}>/ {device.daily_limit ?? 100}</span>
+              </p>
+              <div style={{ marginTop: '8px', height: '4px', background: 'var(--border)', borderRadius: '100px', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.min(100, (sentToday / (device.daily_limit ?? 100)) * 100)}%`,
+                  background: sentToday >= (device.daily_limit ?? 100) ? 'var(--error)' : sentToday >= (device.daily_limit ?? 100) * 0.8 ? 'var(--warning)' : 'var(--success)',
+                  borderRadius: '100px',
+                  transition: 'width 0.4s ease'
+                }} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {qrCode && !isConnected && (
           <div className="qr-container">
